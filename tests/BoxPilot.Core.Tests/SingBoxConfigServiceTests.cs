@@ -130,4 +130,51 @@ public sealed class SingBoxConfigServiceTests
         Assert.Equal("provider-tun", tun["tag"]?.ToString());
         Assert.Equal("10.0.0.1/30", tun["address"]?[0]?.ToString());
     }
+
+    [Fact]
+    public async Task ApplyRuntimeOptionsBootstrapsRemoteRulesThroughDirectOutbound()
+    {
+        var paths = new AppPaths(Path.Combine(
+            Path.GetTempPath(),
+            $"boxpilot-tests-{Guid.NewGuid():N}"));
+        await using var core = new SingBoxService(paths);
+        var service = new SingBoxConfigService(paths, core);
+        var configuration = new JsonObject
+        {
+            ["outbounds"] = new JsonArray(
+                new JsonObject
+                {
+                    ["type"] = "selector",
+                    ["tag"] = "rules_download",
+                    ["outbounds"] = new JsonArray("auto", "direct"),
+                },
+                new JsonObject { ["type"] = "urltest", ["tag"] = "auto" },
+                new JsonObject { ["type"] = "direct", ["tag"] = "direct" },
+                new JsonObject { ["type"] = "vless", ["tag"] = "fixed-proxy" }),
+            ["route"] = new JsonObject
+            {
+                ["rule_set"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["type"] = "remote",
+                        ["tag"] = "group-download",
+                        ["url"] = "https://example.invalid/group.srs",
+                        ["download_detour"] = "rules_download",
+                    },
+                    new JsonObject
+                    {
+                        ["type"] = "remote",
+                        ["tag"] = "fixed-download",
+                        ["url"] = "https://example.invalid/fixed.srs",
+                        ["download_detour"] = "fixed-proxy",
+                    }),
+            },
+        };
+
+        var result = service.ApplyRuntimeOptions(configuration, new AppSettings());
+        var ruleSets = result["route"]!["rule_set"]!.AsArray();
+
+        Assert.Equal("direct", ruleSets[0]!["download_detour"]?.ToString());
+        Assert.Equal("fixed-proxy", ruleSets[1]!["download_detour"]?.ToString());
+    }
 }

@@ -139,6 +139,7 @@ public sealed class SingBoxConfigService(
         clashApi["secret"] = settings.ClashApiSecret;
 
         var route = EnsureObject(clone, "route");
+        StabilizeRemoteRuleSetDownloads(clone, route);
         route["auto_detect_interface"] = true;
         if (!OperatingSystem.IsAndroid())
         {
@@ -147,6 +148,56 @@ public sealed class SingBoxConfigService(
         }
 
         return clone;
+    }
+
+    private static void StabilizeRemoteRuleSetDownloads(JsonObject configuration, JsonObject route)
+    {
+        if (configuration["outbounds"] is not JsonArray outbounds
+            || route["rule_set"] is not JsonArray ruleSets)
+        {
+            return;
+        }
+
+        var directTag = outbounds
+            .OfType<JsonObject>()
+            .FirstOrDefault(static outbound => string.Equals(
+                outbound["type"]?.ToString(),
+                "direct",
+                StringComparison.OrdinalIgnoreCase))?["tag"]
+            ?.ToString();
+        if (string.IsNullOrWhiteSpace(directTag))
+            return;
+
+        var dynamicOutbounds = outbounds
+            .OfType<JsonObject>()
+            .Where(static outbound =>
+            {
+                var type = outbound["type"]?.ToString();
+                return string.Equals(type, "selector", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(type, "urltest", StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(static outbound => outbound["tag"]?.ToString())
+            .Where(static tag => !string.IsNullOrWhiteSpace(tag))
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var ruleSet in ruleSets.OfType<JsonObject>())
+        {
+            if (!string.Equals(
+                    ruleSet["type"]?.ToString(),
+                    "remote",
+                    StringComparison.OrdinalIgnoreCase)
+                || ruleSet["http_client"] is not null)
+            {
+                continue;
+            }
+
+            var detour = ruleSet["download_detour"]?.ToString();
+            if (detour is not null && dynamicOutbounds.Contains(detour))
+            {
+                // Remote rules initialize before selector health checks and persisted choices.
+                // A group detour can therefore make startup depend on an unavailable first node.
+                ruleSet["download_detour"] = directTag;
+            }
+        }
     }
 
     public JsonObject CreateStarterConfiguration(AppSettings settings)
