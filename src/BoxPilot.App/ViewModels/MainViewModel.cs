@@ -11,7 +11,7 @@ public partial class MainViewModel : ViewModelBase
         Session = session;
 
         Dashboard = new DashboardViewModel(session, localization);
-        Profiles = new ProfilesViewModel(session, localization);
+        Profiles = new ProfilesViewModel(session);
         Configuration = new ConfigurationViewModel(session);
         Logs = new LogsViewModel(session);
         Tools = new ToolsViewModel(session, localization);
@@ -74,7 +74,6 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnLanguageChanged()
     {
-        Profiles.NotifyLanguageChanged();
         Settings.NotifyLanguageChanged();
     }
 

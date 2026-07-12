@@ -77,8 +77,8 @@
     <Border Grid.Row="2" BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,1,0,0" Padding="46,0">
       <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Session.StatusMessage}" Classes="muted" FontSize="12"
-                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{DynamicResource Working}" Classes="muted" FontSize="12"
+                   IsVisible="{Binding Session.IsBusy}" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
           <TextBlock Text="{Binding Session.CoreVersion, StringFormat='sing-box {0}'}"
                      Classes="faint" FontSize="12" VerticalAlignment="Center" />
@@ -87,5 +87,38 @@
         </StackPanel>
       </Grid>
     </Border>
+
+    <ItemsControl Grid.RowSpan="3" ItemsSource="{Binding Session.Toast.Items}"
+                  HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Width="420" Margin="0,82,36,0" ZIndex="100">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="9" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ToastItemViewModel">
+          <Border Classes="toast"
+                  Classes.dismissing="{Binding IsDismissing}">
+            <Grid ColumnDefinitions="3,12,*,Auto">
+              <Border Classes="toast-indicator"
+                      Classes.success="{Binding IsSuccess}"
+                      Classes.error="{Binding IsError}"
+                      CornerRadius="99" />
+              <ScrollViewer Grid.Column="2" MaxHeight="110"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalContentAlignment="Stretch">
+                <TextBlock Text="{Binding Message}" Classes="on-dark"
+                           FontSize="14" TextWrapping="Wrap" />
+              </ScrollViewer>
+              <Button Grid.Column="3" Classes="toast-close" Content="×"
+                      Command="{Binding DismissCommand}"
+                      VerticalAlignment="Top" Margin="10,-2,-3,0" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
   </Grid>
 </Window>

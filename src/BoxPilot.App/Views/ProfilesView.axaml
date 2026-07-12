@@ -4,54 +4,60 @@
              x:Class="BoxPilot.App.Views.ProfilesView"
              x:DataType="vm:ProfilesViewModel">
   <Grid RowDefinitions="Auto,24,*">
-    <StackPanel Grid.Row="0">
-      <TextBlock Text="{DynamicResource ProfilesTitle}" Classes="page-title" />
-    </StackPanel>
+    <TextBlock Grid.Row="0" Text="{DynamicResource ProfilesTitle}" Classes="page-title" />
 
     <Border Grid.Row="2" Classes="panel" Padding="0">
-      <Grid ColumnDefinitions="330,1,*">
-        <ScrollViewer Grid.Column="0" Padding="22"
-                      HorizontalScrollBarVisibility="Disabled"
-                      HorizontalContentAlignment="Stretch">
-          <StackPanel Spacing="12" HorizontalAlignment="Stretch">
-            <TextBlock Text="{DynamicResource ImportSection}" Classes="section-title" />
-            <TextBlock Text="{DynamicResource SubscriptionName}" Classes="muted" FontSize="13" />
-            <TextBox Text="{Binding ProfileName}"
-                     PlaceholderText="{DynamicResource SubscriptionNamePlaceholder}" />
-            <TextBlock Text="{DynamicResource SubscriptionUrl}" Classes="muted"
-                       FontSize="13" Margin="0,4,0,0" />
-            <TextBox Text="{Binding SubscriptionUrl}" PlaceholderText="https://…"
-                     MaxWidth="286" HorizontalAlignment="Stretch" />
-            <Button Classes="primary" Content="{DynamicResource Import}"
-                    Command="{Binding ImportCommand}" IsEnabled="{Binding Session.CanModifyProfiles}"
-                    HorizontalAlignment="Stretch" />
-            <Button Classes="ghost" Content="{DynamicResource CreateBlank}"
-                    Command="{Binding CreateBlankCommand}" IsEnabled="{Binding Session.CanModifyProfiles}"
-                    HorizontalAlignment="Stretch" />
-            <TextBlock Text="{Binding ImportDetails}" Classes="muted"
-                       TextWrapping="Wrap" FontSize="13" />
-            <Border Classes="soft-panel" Margin="0,8,0,0">
-              <TextBlock Text="{DynamicResource AboutSecurity}" Classes="muted"
-                         TextWrapping="Wrap" FontSize="13" />
-            </Border>
-          </StackPanel>
-        </ScrollViewer>
+      <Grid RowDefinitions="Auto,1,*">
+        <Grid Grid.Row="0" Margin="22" RowDefinitions="Auto,14,Auto">
+          <TextBlock Grid.Row="0" Text="{DynamicResource ImportSection}"
+                     Classes="section-title" />
 
-        <Border Grid.Column="1" Background="{DynamicResource CardBorderBrush}" />
-
-        <Grid Grid.Column="2" Margin="22" RowDefinitions="Auto,14,*,Auto" RowSpacing="0">
-          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
-            <StackPanel Spacing="3">
-              <TextBlock Text="{DynamicResource ProfileLibrary}" Classes="section-title" />
+          <Grid Grid.Row="2" ColumnDefinitions="220,*,Auto,Auto" ColumnSpacing="12">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{DynamicResource SubscriptionName}" Classes="muted"
+                         FontSize="13" />
+              <TextBox Text="{Binding ProfileName}"
+                       PlaceholderText="{DynamicResource SubscriptionNamePlaceholder}" />
             </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="6">
+              <TextBlock Text="{DynamicResource SubscriptionUrl}" Classes="muted"
+                         FontSize="13" />
+              <TextBox Text="{Binding SubscriptionUrl}" PlaceholderText="https://…"
+                       HorizontalAlignment="Stretch" />
+            </StackPanel>
+
+            <Button Grid.Column="2" Classes="primary" Content="{DynamicResource Import}"
+                    Command="{Binding ImportCommand}"
+                    IsEnabled="{Binding Session.CanModifyProfiles}"
+                    MinWidth="126" VerticalAlignment="Bottom" />
+            <Button Grid.Column="3" Classes="ghost" Content="{DynamicResource CreateBlank}"
+                    Command="{Binding CreateBlankCommand}"
+                    IsEnabled="{Binding Session.CanModifyProfiles}"
+                    MinWidth="126" VerticalAlignment="Bottom" />
+          </Grid>
+        </Grid>
+
+        <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
+
+        <Grid Grid.Row="2" Margin="22" RowDefinitions="Auto,14,*,Auto">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <TextBlock Text="{DynamicResource ProfileLibrary}" Classes="section-title" />
             <TextBlock Grid.Column="1" Text="{Binding Session.Profiles.Count}"
                        Classes="faint" FontSize="18" VerticalAlignment="Center" />
           </Grid>
 
-          <ListBox Grid.Row="2" ItemsSource="{Binding Session.Profiles}"
+          <ListBox Grid.Row="2" Classes="profile-grid"
+                   ItemsSource="{Binding Session.Profiles}"
                    SelectedItem="{Binding Session.SelectedProfile}"
                    Background="Transparent" BorderThickness="0"
                    IsEnabled="{Binding Session.CanModifyProfiles}">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="2" ColumnSpacing="12" RowSpacing="10"
+                             VerticalAlignment="Top" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="34,*,Auto" Margin="11,9" ColumnSpacing="12">
@@ -84,7 +90,7 @@
                   <TextBlock Text="{DynamicResource DeleteProfileQuestion}"
                              FontWeight="SemiBold" FontSize="14" />
                   <TextBlock Text="{DynamicResource DeleteProfileHint}"
-                             Classes="muted" FontSize="13" />
+                             Classes="muted" FontSize="13" TextWrapping="Wrap" />
                 </StackPanel>
                 <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource Cancel}"
                         Command="{Binding CancelDeleteCommand}" />
@@ -99,7 +105,7 @@
                       IsEnabled="{Binding Session.CanRefreshSubscription}" />
               <Button Classes="danger" Content="{DynamicResource Delete}"
                       Command="{Binding BeginDeleteCommand}"
-                      IsEnabled="{Binding Session.CanModifyProfiles}" />
+                      IsEnabled="{Binding Session.CanDeleteProfile}" />
             </StackPanel>
           </Grid>
         </Grid>

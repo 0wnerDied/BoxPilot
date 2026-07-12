@@ -100,6 +100,7 @@ public sealed class LocalizationService
             ["StartOnLaunch"] = "Start core when BoxPilot opens",
             ["CloseToTray"] = "Keep running when the main window closes",
             ["SaveSettings"] = "Save settings",
+            ["SettingsSaved"] = "Settings saved",
             ["DataDirectory"] = "Open data directory",
             ["Quit"] = "Quit",
             ["Subscription"] = "Subscription",
@@ -116,7 +117,6 @@ public sealed class LocalizationService
             ["ExitCode"] = "Command exited with code {0}",
             ["Ready"] = "Ready",
             ["Working"] = "Working…",
-            ["AboutSecurity"] = "Subscription URLs and credentials stay in your local application-data directory.",
         };
 
     private static readonly IReadOnlyDictionary<string, string> SimplifiedChinese =
@@ -212,6 +212,7 @@ public sealed class LocalizationService
             ["StartOnLaunch"] = "BoxPilot 启动时运行内核",
             ["CloseToTray"] = "关闭主窗口后继续在后台运行",
             ["SaveSettings"] = "保存设置",
+            ["SettingsSaved"] = "设置已保存",
             ["DataDirectory"] = "打开数据目录",
             ["Quit"] = "退出",
             ["Subscription"] = "订阅",
@@ -228,7 +229,6 @@ public sealed class LocalizationService
             ["ExitCode"] = "命令退出，状态码为 {0}",
             ["Ready"] = "就绪",
             ["Working"] = "处理中…",
-            ["AboutSecurity"] = "订阅地址与凭据仅存储在本机应用数据目录中。",
         };
 
     private IReadOnlyDictionary<string, string> current = SimplifiedChinese;

@@ -151,6 +151,31 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="14" />
     </Style>
+    <Style Selector="Border.toast">
+      <Setter Property="Background" Value="{DynamicResource DarkModuleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.45" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.toast.dismissing">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Border.toast-indicator">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Border.toast-indicator.success">
+      <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="Border.toast-indicator.error">
+      <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+    </Style>
     <Style Selector="Button">
       <Setter Property="CornerRadius" Value="5" />
       <Setter Property="Padding" Value="15,9" />
@@ -195,6 +220,20 @@
       <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
       <Setter Property="BorderBrush" Value="#55A5574B" />
       <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.toast-close">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource DarkMutedBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Button.toast-close:pointerover">
+      <Setter Property="Foreground" Value="{DynamicResource DarkTextBrush}" />
+    </Style>
+    <Style Selector="Button.toast-close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.nav">
       <Setter Property="Background" Value="Transparent" />
@@ -301,6 +340,10 @@
     <Style Selector="ListBoxItem">
       <Setter Property="CornerRadius" Value="5" />
       <Setter Property="Margin" Value="0,2" />
+    </Style>
+    <Style Selector="ListBox.profile-grid ListBoxItem">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="0" />
     </Style>
     <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}" />

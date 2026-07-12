@@ -59,6 +59,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     public ObservableCollection<CoreLogEntry> Logs { get; } = [];
 
+    public ToastViewModel Toast { get; } = new();
+
     [ObservableProperty]
     public partial AppSettings Settings { get; private set; } = new();
 
@@ -107,6 +109,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     public bool CanModifyProfiles => !IsBusy && !IsCoreRunning;
 
+    public bool CanDeleteProfile => CanModifyProfiles && SelectedProfile is not null;
+
     public bool CanRefreshSubscription => !IsBusy
                                           && !IsConfigurationDirty
                                           && SelectedProfile?.Source == ProfileSource.Subscription
@@ -148,11 +152,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             {
                 CoreVersion = localization["CoreNotFound"];
                 StatusMessage = localization["CoreNotFoundHelp"];
+                Toast.Show(StatusMessage, ToastLevel.Error);
             }
             catch (Exception exception)
             {
                 CoreVersion = localization["CoreNotFound"];
                 StatusMessage = exception.Message;
+                Toast.Show(exception.Message, ToastLevel.Error);
             }
 
             await ReloadProfilesAsync(cancellationToken);
@@ -244,7 +250,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await SaveAndValidateSelectedAsync(cancellationToken);
             StatusMessage = IsCoreRunning
                 ? localization["RestartToApply"]
-                : localization["Ready"];
+                : localization["ChangesSaved"];
+            Toast.Show(
+                StatusMessage,
+                IsCoreRunning ? ToastLevel.Warning : ToastLevel.Success);
         });
     }
 
@@ -268,6 +277,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 : result.CombinedOutput;
             if (!result.IsSuccess)
                 throw new InvalidDataException(result.CombinedOutput);
+            Toast.Show(StatusMessage, ToastLevel.Success);
         });
     }
 
@@ -294,6 +304,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 ? $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]}"
                 : $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]} · "
                   + $"{outcome.Warnings.Count} {localization["Warnings"]}";
+            ShowImportOutcomeToast(outcome);
             return outcome;
         }, () => outcome);
     }
@@ -326,6 +337,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             StatusMessage = outcome.NotModified
                 ? $"✓ {localization["SubscriptionCurrent"]}"
                 : $"✓ {updated.NodeCount} {localization["Nodes"]}";
+            ShowImportOutcomeToast(outcome);
             return outcome;
         }, () => outcome);
     }
@@ -405,7 +417,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             if (restart && SelectedProfile is not null)
                 await singBox.StartAsync(profileRepository.GetConfigurationPath(SelectedProfile), cancellationToken);
 
-            StatusMessage = localization["Ready"];
+            StatusMessage = localization["SettingsSaved"];
+            Toast.Show(StatusMessage, ToastLevel.Success);
         });
     }
 
@@ -426,6 +439,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         catch (Exception exception)
         {
             StatusMessage = exception.Message;
+            Toast.Show(exception.Message, ToastLevel.Error);
             throw;
         }
         finally
@@ -463,6 +477,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         disposed = true;
 
         logFlushTimer.Stop();
+        Toast.Dispose();
         StopTrafficMonitor();
         singBox.LogReceived -= OnLogReceived;
         singBox.StateChanged -= OnCoreStateChanged;
@@ -475,6 +490,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         if (!suppressProfileLoad && value is not null && IsInitialized)
             _ = SelectProfileSafelyAsync(value);
+        OnPropertyChanged(nameof(CanDeleteProfile));
         NotifyComputedState();
     }
 
@@ -495,6 +511,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanStartCore));
         OnPropertyChanged(nameof(CanStopCore));
         OnPropertyChanged(nameof(CanModifyProfiles));
+        OnPropertyChanged(nameof(CanDeleteProfile));
         OnPropertyChanged(nameof(CoreStateDisplay));
     }
 
@@ -503,6 +520,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanStartCore));
         OnPropertyChanged(nameof(CanStopCore));
         OnPropertyChanged(nameof(CanModifyProfiles));
+        OnPropertyChanged(nameof(CanDeleteProfile));
         OnPropertyChanged(nameof(CanRefreshSubscription));
     }
 
@@ -565,6 +583,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         catch (Exception exception)
         {
             StatusMessage = exception.Message;
+            Toast.Show(exception.Message, ToastLevel.Error);
         }
     }
 
@@ -597,6 +616,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         catch (Exception exception)
         {
             StatusMessage = exception.Message;
+            Toast.Show(exception.Message, ToastLevel.Error);
             return fallback();
         }
         finally
@@ -617,7 +637,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
             CoreState = eventArgs.Current;
             if (!string.IsNullOrWhiteSpace(eventArgs.Error))
+            {
                 StatusMessage = eventArgs.Error;
+                Toast.Show(eventArgs.Error, ToastLevel.Error);
+            }
             if (eventArgs.Current is CoreState.Stopped or CoreState.Faulted)
                 StopTrafficMonitor();
         });
@@ -686,12 +709,25 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanStartCore));
         OnPropertyChanged(nameof(CanStopCore));
         OnPropertyChanged(nameof(CanModifyProfiles));
+        OnPropertyChanged(nameof(CanDeleteProfile));
         OnPropertyChanged(nameof(CanRefreshSubscription));
         OnPropertyChanged(nameof(IsCoreRunning));
         OnPropertyChanged(nameof(ActiveNodeCount));
         OnPropertyChanged(nameof(ActiveNodeDisplay));
         OnPropertyChanged(nameof(CoreStateDisplay));
         OnPropertyChanged(nameof(TunDisplay));
+    }
+
+    private void ShowImportOutcomeToast(ProfileImportOutcome outcome)
+    {
+        if (outcome.Warnings.Count > 0)
+        {
+            foreach (var warning in outcome.Warnings)
+                Toast.Show(warning, ToastLevel.Warning);
+            return;
+        }
+
+        Toast.Show(StatusMessage, ToastLevel.Success);
     }
 
     private void OnLanguageChanged()
