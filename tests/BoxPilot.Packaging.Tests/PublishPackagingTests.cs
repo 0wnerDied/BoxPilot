@@ -53,6 +53,11 @@ public sealed class PublishPackagingTests : IDisposable
             Assert.True(Directory.Exists(Path.Combine(mount, "BoxPilot.app")));
             var applications = new DirectoryInfo(Path.Combine(mount, "Applications"));
             Assert.Equal("/Applications", applications.LinkTarget);
+            var readme = Path.Combine(mount, "README.txt");
+            Assert.True(File.Exists(readme));
+            Assert.Contains(
+                "xattr -dr com.apple.quarantine \"/Applications/BoxPilot.app\"",
+                await File.ReadAllTextAsync(readme));
         }
         finally
         {

@@ -66,6 +66,7 @@ PLIST
   fi
 
   ln -s /Applications "$staging/Applications"
+  cp "$root/docs/macos/README.txt" "$staging/README.txt"
   sync
   created=false
   for attempt in 1 2 3; do

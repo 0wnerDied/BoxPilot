@@ -40,6 +40,8 @@ make lint       # 验证代码格式
 自包含产物位于 `dist/<RID>/`。macOS 输出 `.dmg`，打开后将
 `BoxPilot.app` 拖入 `Applications` 即可安装。Windows 单文件发布直接输出
 带嵌入图标的 `BoxPilot.exe`；仅当发布结果包含 DLL 依赖时才生成 ZIP 包。
+macOS 自动构建使用 ad-hoc 签名；DMG 内的 `README.txt` 提供 Gatekeeper
+首次运行说明。
 TUN 在 macOS 上通常需要 root 权限，在 Windows 上可能需要管理员权限；
 普通系统代理模式不需要提权。
 
