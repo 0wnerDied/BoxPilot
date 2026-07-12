@@ -11,7 +11,15 @@ sealed class Program
     public static int Main(string[] args)
     {
         if (CoreServiceInstaller.IsInvocation(args))
-            return CoreServiceInstaller.RunAsync(args).GetAwaiter().GetResult();
+        {
+            var exitCode = CoreServiceInstaller.RunAsync(args).GetAwaiter().GetResult();
+            if (OperatingSystem.IsMacOS())
+            {
+                Console.WriteLine($"{CoreServiceInstaller.ResultPrefix}{exitCode}");
+                Console.Out.Flush();
+            }
+            return exitCode;
+        }
         if (CoreServiceHost.IsInvocation(args))
             return CoreServiceHost.Run(args);
 

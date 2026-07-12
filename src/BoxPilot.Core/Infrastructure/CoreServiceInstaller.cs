@@ -8,8 +8,13 @@ namespace BoxPilot.Core.Infrastructure;
 
 public static class CoreServiceInstaller
 {
+    private static readonly TimeSpan ElevatedOperationTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan InstallerCommandTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan LaunchDaemonStartupTimeout = TimeSpan.FromSeconds(10);
+
     public const string ModeArgument = "--boxpilot-service-install";
     public const string UninstallModeArgument = "--boxpilot-service-uninstall";
+    public const string ResultPrefix = "boxpilot-installer-exit:";
 
     public static bool IsInvocation(IReadOnlyList<string> arguments)
     {
@@ -130,22 +135,39 @@ public static class CoreServiceInstaller
                     requestPath,
                     cancellationToken)
                 .ConfigureAwait(false);
-            using var process = await LaunchElevatedAsync(
-                    mode,
-                    requestPath,
-                    requestFingerprint,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            var standardErrorTask = process.StartInfo.RedirectStandardError
-                ? process.StandardError.ReadToEndAsync(cancellationToken)
-                : Task.FromResult(string.Empty);
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            var standardError = await standardErrorTask.ConfigureAwait(false);
-            if (process.ExitCode == 0)
+            int exitCode;
+            if (OperatingSystem.IsMacOS())
+            {
+                exitCode = await MacOSAuthorization.RunAsync(
+                        CoreServiceFiles.ResolveApplicationExecutable(),
+                        [mode, Path.GetFullPath(requestPath), requestFingerprint],
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    exitCode = await RunWindowsElevatedOperationAsync(
+                            mode,
+                            requestPath,
+                            requestFingerprint,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (TimeoutException exception)
+                {
+                    throw new CoreServiceException(failure, errorCode, exception);
+                }
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+
+            if (exitCode == 0)
                 return;
-            if (process.ExitCode == 77
-                || standardError.Contains("(-128)", StringComparison.Ordinal)
-                || standardError.Contains("User canceled", StringComparison.OrdinalIgnoreCase))
+            if (exitCode == 77)
             {
                 throw new CoreServiceException(
                     CoreServiceFailure.AuthorizationDenied,
@@ -153,10 +175,51 @@ public static class CoreServiceInstaller
             }
             throw new CoreServiceException(failure, errorCode);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (CoreServiceException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new CoreServiceException(failure, errorCode, exception);
+        }
         finally
         {
             TryDelete(requestPath);
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task<int> RunWindowsElevatedOperationAsync(
+        string mode,
+        string requestPath,
+        string requestFingerprint,
+        CancellationToken cancellationToken)
+    {
+        using var process = await LaunchWindowsAsync(
+                mode,
+                requestPath,
+                requestFingerprint,
+                cancellationToken)
+            .ConfigureAwait(false);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ElevatedOperationTimeout);
+        try
+        {
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+        {
+            TryKill(process);
+            if (cancellationToken.IsCancellationRequested)
+                throw;
+            throw new TimeoutException("BoxPilot TUN installation did not finish in time.", exception);
+        }
+        return process.ExitCode;
     }
 
     private static async Task UninstallAsync(
@@ -463,6 +526,15 @@ public static class CoreServiceInstaller
                 ignoreFailure: false,
                 cancellationToken)
             .ConfigureAwait(false);
+
+        var attempts = (int)(LaunchDaemonStartupTimeout / TimeSpan.FromMilliseconds(250));
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            if (File.Exists(layout.Endpoint))
+                return;
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+        }
+        throw new InvalidOperationException("BoxPilot TUN did not start its system service.");
     }
 
     private static Task StopLaunchDaemonAsync(
@@ -496,14 +568,14 @@ public static class CoreServiceInstaller
                     layout.ServiceName,
                     "binPath=", binaryPath,
                     "start=", "auto",
-                    "DisplayName=", "BoxPilot Core Service",
+                    "DisplayName=", "BoxPilot TUN Service",
                 ],
                 ignoreFailure: false,
                 cancellationToken)
             .ConfigureAwait(false);
         await RunCommandAsync(
                 "sc.exe",
-                ["description", layout.ServiceName, "Runs the protected sing-box core for BoxPilot TUN mode."],
+                ["description", layout.ServiceName, "Runs sing-box with protected TUN privileges for BoxPilot."],
                 ignoreFailure: false,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -568,9 +640,23 @@ public static class CoreServiceInstaller
         if (!process.Start())
             throw new InvalidOperationException($"Could not start {executable}.");
 
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(InstallerCommandTimeout);
+        try
+        {
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+        {
+            TryKill(process);
+            if (cancellationToken.IsCancellationRequested)
+                throw;
+            throw new TimeoutException(
+                $"{Path.GetFileName(executable)} did not finish in time.",
+                exception);
+        }
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
         if (process.ExitCode != 0 && !ignoreFailure)
@@ -643,52 +729,6 @@ public static class CoreServiceInstaller
                    CoreServiceErrorCodes.Unavailable);
     }
 
-    private static Process LaunchMacOS(
-        string mode,
-        string requestPath,
-        string requestFingerprint)
-    {
-        var command = string.Join(' ', new[]
-        {
-            CoreServiceFiles.ResolveApplicationExecutable(),
-            mode,
-            Path.GetFullPath(requestPath),
-            requestFingerprint,
-        }.Select(QuoteShell));
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "/usr/bin/osascript",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Utf8Text.Strict,
-            StandardErrorEncoding = Utf8Text.Strict,
-        };
-        startInfo.ArgumentList.Add("-e");
-        startInfo.ArgumentList.Add("on run argv");
-        startInfo.ArgumentList.Add("-e");
-        startInfo.ArgumentList.Add("do shell script (item 1 of argv) with administrator privileges");
-        startInfo.ArgumentList.Add("-e");
-        startInfo.ArgumentList.Add("end run");
-        startInfo.ArgumentList.Add(command);
-        return Process.Start(startInfo)
-               ?? throw new CoreServiceException(
-                   CoreServiceFailure.Unavailable,
-                   CoreServiceErrorCodes.Unavailable);
-    }
-
-    private static Task<Process> LaunchElevatedAsync(
-        string mode,
-        string requestPath,
-        string requestFingerprint,
-        CancellationToken cancellationToken)
-    {
-        return OperatingSystem.IsWindows()
-            ? LaunchWindowsAsync(mode, requestPath, requestFingerprint, cancellationToken)
-            : Task.FromResult(LaunchMacOS(mode, requestPath, requestFingerprint));
-    }
-
     private static void DeleteDirectoryWithRetry(string path)
     {
         if (!Directory.Exists(path))
@@ -727,9 +767,16 @@ public static class CoreServiceInstaller
         return System.Security.SecurityElement.Escape(value) ?? string.Empty;
     }
 
-    private static string QuoteShell(string value)
+    private static void TryKill(Process process)
     {
-        return $"'{value.Replace("'", "'\\''", StringComparison.Ordinal)}'";
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+        }
     }
 
     private static void TryDelete(string path)

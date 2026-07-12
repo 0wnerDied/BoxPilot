@@ -12,7 +12,7 @@ BoxPilot separates the Avalonia presentation layer from all sing-box and subscri
 
 ## Privileged TUN boundary
 
-The Avalonia process always runs with the current user's permissions. On the first TUN start, BoxPilot requests administrator approval to install an owner-scoped service: a LaunchDaemon on macOS or a Windows Service. The installer copies the current BoxPilot service host and selected sing-box binary into a system-protected directory. Later TUN starts do not elevate the GUI or execute a user-selected path as root.
+The Avalonia process always runs with the current user's permissions. On the first TUN start, BoxPilot calls macOS Authorization Services directly and identifies the operation as **BoxPilot TUN**; no auxiliary app, executable, or `osascript` process is shipped. Windows uses the existing BoxPilot executable for the corresponding UAC flow. The authorized operation can launch only BoxPilot's fingerprinted installer entry point, which installs an owner-scoped LaunchDaemon or Windows Service and copies the selected sing-box binary into a protected directory. Later TUN starts do not elevate the GUI or execute a user-selected path as root.
 
 The GUI authenticates over a user-restricted Unix socket or Windows named pipe with a 256-bit local token. IPC accepts only bounded lifecycle messages and configuration content; the protected sing-box path is fixed at installation. Application and core fingerprints trigger a one-time service update after either binary changes. Losing the GUI connection stops sing-box and removes its temporary configuration, while the installed service remains idle for the next launch. Settings exposes explicit service removal.
 

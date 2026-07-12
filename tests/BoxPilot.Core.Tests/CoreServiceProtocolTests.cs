@@ -56,4 +56,14 @@ public sealed class CoreServiceProtocolTests
         Assert.False(CoreServiceInstaller.IsInvocation([CoreServiceHost.ModeArgument]));
         Assert.False(CoreServiceHost.IsInvocation(["--unknown"]));
     }
+
+    [Theory]
+    [InlineData("boxpilot-installer-exit:0\n", 0)]
+    [InlineData("notice\nboxpilot-installer-exit:77\n", 77)]
+    [InlineData("boxpilot-installer-exit:999\n", 70)]
+    [InlineData("unrelated output", 70)]
+    public void MacOSInstallerResultRequiresABoundedExitCode(string output, int expected)
+    {
+        Assert.Equal(expected, MacOSAuthorization.ParseInstallerResult(output));
+    }
 }
