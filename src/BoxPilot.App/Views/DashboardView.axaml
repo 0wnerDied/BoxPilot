@@ -82,71 +82,114 @@
       </Border>
     </Grid>
 
-    <Grid Grid.Row="4" ColumnDefinitions="1.2*,0.8*" ColumnSpacing="16">
-      <Border Classes="panel">
-        <Grid RowDefinitions="Auto,22,Auto,*,Auto">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="{DynamicResource ProxySelector}" Classes="section-title" />
-            <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource Refresh}"
-                    Command="{Binding RefreshProxiesCommand}"
-                    IsEnabled="{Binding Session.IsCoreRunning}" />
-          </Grid>
-          <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
-            <ComboBox ItemsSource="{Binding ProxyChoices}" SelectedItem="{Binding SelectedChoice}"
-                      PlaceholderText="{DynamicResource SelectGroup}"
-                      IsEnabled="{Binding Session.IsCoreRunning}"
-                      HorizontalAlignment="Stretch">
-              <ComboBox.ItemTemplate>
-                <DataTemplate><TextBlock Text="{Binding Group}" /></DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox Grid.Column="1" ItemsSource="{Binding SelectedChoice.Options}"
-                      SelectedItem="{Binding SelectedProxy}"
-                      PlaceholderText="{DynamicResource SelectNode}"
-                      IsEnabled="{Binding Session.IsCoreRunning}"
-                      HorizontalAlignment="Stretch" />
-          </Grid>
-          <Grid Grid.Row="4" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="9">
-            <Button Classes="primary" Content="{DynamicResource Apply}"
-                    Command="{Binding ApplyProxyCommand}"
-                    IsEnabled="{Binding Session.IsCoreRunning}" />
-            <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource Latency}"
-                    Command="{Binding TestDelayCommand}"
-                    IsEnabled="{Binding Session.IsCoreRunning}" />
-            <TextBlock Grid.Column="2" Text="{Binding DelayText}" Classes="muted"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" />
-          </Grid>
-        </Grid>
-      </Border>
-
-      <Border Grid.Column="1" Classes="panel" Padding="0">
-        <Grid RowDefinitions="54,1,*">
-          <Grid Margin="20,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-            <TextBlock Text="{DynamicResource RecentLogs}" Classes="section-title" />
-            <TextBlock Grid.Column="1" Text="{Binding Session.Logs.Count}"
+    <Border Grid.Row="4" Classes="panel" Padding="0">
+      <Grid ColumnDefinitions="236,1,*">
+        <Grid RowDefinitions="64,1,*">
+          <Grid Margin="18,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Text="{DynamicResource PolicyGroups}" Classes="section-title" />
+            <TextBlock Grid.Column="1" Text="{Binding GroupCountDisplay}"
                        Classes="faint" FontSize="13" />
           </Grid>
           <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
-          <ListBox Grid.Row="2" ItemsSource="{Binding Session.Logs}"
-                   Background="Transparent" BorderThickness="0"
-                   FontFamily="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace"
-                   FontSize="12" Margin="8" IsVisible="{Binding Session.HasLogs}">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Grid ColumnDefinitions="56,*" ColumnSpacing="8" Margin="7,3">
-                  <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
-                             Classes="faint" />
-                  <TextBlock Grid.Column="1" Text="{Binding Message}" Classes="muted"
-                             TextTrimming="CharacterEllipsis" />
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-          <TextBlock Grid.Row="2" Text="{DynamicResource NoRecentLogs}" Classes="muted"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     IsVisible="{Binding !Session.HasLogs}" />
+          <Grid Grid.Row="2">
+            <ListBox Classes="proxy-groups" ItemsSource="{Binding ProxyGroups}"
+                     SelectedItem="{Binding SelectedGroup}"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ProxyGroupItemViewModel">
+                  <Grid Margin="11,7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Selected}" Classes="muted" FontSize="13"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
+                               Classes="faint" FontSize="13" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Text="{DynamicResource NoProxyGroups}" Classes="muted"
+                       Margin="18" TextWrapping="Wrap" TextAlignment="Center"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding !HasProxyGroups}" />
+          </Grid>
         </Grid>
-      </Border>
-    </Grid>
+
+        <Border Grid.Column="1" Background="{DynamicResource CardBorderBrush}" />
+
+        <Grid Grid.Column="2" RowDefinitions="96,1,*">
+          <Grid Margin="18,12" RowDefinitions="Auto,8,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="9">
+              <StackPanel Spacing="2">
+                <TextBlock Text="{Binding SelectedGroup.Name, FallbackValue=—}"
+                           Classes="section-title" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding SelectedNodeDisplay, StringFormat='{}{0}'}"
+                           Classes="muted" FontSize="13" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource TestAll}"
+                      Command="{Binding TestAllCommand}"
+                      IsEnabled="{Binding Session.IsCoreRunning}" />
+              <Button Grid.Column="2" Classes="ghost" Content="{DynamicResource Refresh}"
+                      Command="{Binding RefreshProxiesCommand}"
+                      IsEnabled="{Binding Session.IsCoreRunning}" />
+            </Grid>
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+              <TextBox Text="{Binding SearchText}" PlaceholderText="{DynamicResource SearchNodes}"
+                       MinHeight="34" />
+              <CheckBox Grid.Column="1" Content="{DynamicResource SortByLatency}"
+                        IsChecked="{Binding SortByLatency}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="2" Text="{Binding NodeCountDisplay}"
+                         Classes="faint" FontSize="13" VerticalAlignment="Center" />
+            </Grid>
+          </Grid>
+          <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
+          <Grid Grid.Row="2">
+            <ListBox Classes="node-list" ItemsSource="{Binding VisibleNodes}"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ProxyNodeItemViewModel">
+                  <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
+                    <Grid ColumnDefinitions="*,44">
+                      <Button Classes="node-select" Command="{Binding SelectCommand}"
+                              IsEnabled="{Binding !IsApplying}">
+                        <Grid ColumnDefinitions="18,*,96" ColumnSpacing="10">
+                          <Grid Width="10" Height="10" VerticalAlignment="Center">
+                            <Ellipse Fill="{DynamicResource CardBorderBrush}" />
+                            <Ellipse Fill="{DynamicResource AccentBrush}"
+                                     IsVisible="{Binding IsSelected}" />
+                          </Grid>
+                          <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontSize="15"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding TypeDisplay}" Classes="muted" FontSize="13" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="2" Text="{Binding DelayDisplay}"
+                                     Classes="node-delay"
+                                     Classes.fast="{Binding HasFastDelay}"
+                                     Classes.medium="{Binding HasMediumDelay}"
+                                     Classes.slow="{Binding HasSlowDelay}"
+                                     HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                      </Button>
+                      <Button Grid.Column="1" Classes="node-test" Content="↻"
+                              Command="{Binding TestCommand}"
+                              IsEnabled="{Binding !IsTesting}"
+                              ToolTip.Tip="{DynamicResource Latency}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Text="{DynamicResource NoMatchingNodes}" Classes="muted"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding !HasVisibleNodes}" />
+          </Grid>
+        </Grid>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

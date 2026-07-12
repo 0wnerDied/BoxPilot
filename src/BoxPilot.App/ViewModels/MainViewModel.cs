@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using BoxPilot.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,6 +19,7 @@ public partial class MainViewModel : ViewModelBase
         Settings = new SettingsViewModel(session, localization);
         CurrentPage = Dashboard;
         localization.LanguageChanged += OnLanguageChanged;
+        session.PropertyChanged += OnSessionPropertyChanged;
     }
 
     public AppSessionViewModel Session { get; }
@@ -75,6 +77,17 @@ public partial class MainViewModel : ViewModelBase
     private void OnLanguageChanged()
     {
         Settings.NotifyLanguageChanged();
+    }
+
+    private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName != nameof(AppSessionViewModel.IsCoreRunning))
+            return;
+
+        if (Session.IsCoreRunning)
+            _ = Dashboard.RefreshProxiesAsync();
+        else
+            Dashboard.ClearProxies();
     }
 
     partial void OnCurrentPageKeyChanged(string value)
