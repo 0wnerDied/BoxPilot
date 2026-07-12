@@ -2,26 +2,31 @@
 
 ## Project Structure & Tooling
 
-BoxPilot has no source, tests, build manifest, or Git metadata. Keep root files project-wide. Put production code in `src/`, tests in `tests/`, assets in `assets/`, and tools in `scripts/`; mirror source paths under `tests/`. The first implementation must provide reproducible commands—prefer `make setup`, `make run`, `make test`, and `make lint`—and document dependencies here. Never claim an unimplemented command works.
+BoxPilot is a .NET 10/Avalonia 12 desktop application. `src/BoxPilot.App/` contains XAML, MVVM view models, themes, localization, tray behavior, and assets. Platform-neutral process, profile, subscription, and Clash API logic belongs in `src/BoxPilot.Core/`. Mirror behavior in `tests/BoxPilot.Core.Tests/`; keep automation in `scripts/` and architecture notes in `docs/`. Never place subscriptions, generated profiles, `bin/`, `obj/`, or `dist/` in Git.
+
+Use the top-level interface:
+
+- `make setup` restores dependencies.
+- `make run` launches the development GUI.
+- `make build` builds Release artifacts.
+- `make test` runs all xUnit tests, including installed-core validation.
+- `make lint` runs `dotnet format --verify-no-changes`.
+- `./scripts/publish.sh <RID>` creates a self-contained macOS or Windows package.
 
 ## Mandatory Code Style
 
-Modern [kerneltoast](https://github.com/kerneltoast) Linux/Android style is merge-blocking; older casual changes are not precedent.
+Modern [kerneltoast](https://github.com/kerneltoast) Linux/Android style is merge-blocking: prefer small, direct implementations, standard helpers, explicit failure paths, and measured optimization. Older casual commits are not precedent.
 
-- For C, use Linux kernel layout: tabs (8-column stops), function braces on the next line, control braces on the same line, and roughly 80-column lines. Use `snake_case` for functions/variables, lowercase struct names, and `UPPER_SNAKE_CASE` for macros and enum values.
-- Prefer small, direct implementations and existing helpers over open-coded loops or speculative abstractions. Remove redundant work; keep patches narrowly scoped.
-- Make ownership, lifetime, error paths, locking, and concurrency assumptions explicit. Use early returns or labeled cleanup to limit nesting.
-- Comments explain rationale, races, units, thresholds, or API constraints—not obvious syntax. Performance claims require traces, benchmarks, or before/after numbers. Avoid hot-path allocations and verbose logging unless justified.
-- For non-C code, use the ecosystem formatter while preserving descriptive names, minimal control flow, explicit failures, and measured optimization.
+For C#, use four spaces, file-scoped namespaces, nullable annotations, `PascalCase` public members, `camelCase` locals, and `Async` suffixes. Favor immutable records, cancellation tokens, atomic writes, and bounded collections. Make ownership, lifetime, locking, and concurrency assumptions visible. Use early returns or labeled cleanup to limit nesting. XAML and JSON use two spaces. User-visible text must come from `LocalizationService`; add both `zh-CN` and `en-US` entries. Never block the Avalonia UI thread.
+
+Comments explain rationale, races, units, thresholds, or platform/API constraints—not syntax. Performance claims require traces, benchmarks, or before/after numbers. Avoid hot-path allocation and verbose logging unless justified. Run the formatter; do not hand-align code against it.
 
 ## Testing Guidelines
 
-Every behavior change requires deterministic tests, including relevant failure and concurrency paths. Name tests after observable behavior, such as `test_rejects_expired_token`. Bug fixes require a regression test. Until a framework exists, state manual verification precisely; once added, `make test` must run the complete suite.
+Every behavior change needs deterministic xUnit coverage, including malformed input, failure, cancellation, and concurrency paths. Name tests after observable behavior, such as `ParseClashYamlConvertsVlessGroupsAndRules`. Bug fixes require a regression test. Tests must use temporary directories and must not change system proxy settings. Validate generated configurations with `sing-box check` when available.
 
 ## Mandatory Commit & Pull Request Style
 
-Use kerneltoast's current kernel-style subjects: subsystem prefix, colon, then an imperative summary, for example `sched/fair: Fix stale capacity updates`. Use sentence case, no trailing period, and about 72 characters. After a blank line, explain the problem, root cause or constraint, change, and observable effect. Wrap prose near 72–75 columns; include relevant traces, warnings, reproduction steps, or measurements.
+Use a subsystem prefix and imperative summary, for example `subscriptions: Preserve Clash selector groups`. Use sentence case, no period, and about 72 characters. After a blank line, explain problem, root cause or constraint, change, and effect; wrap prose near 72–75 columns and include relevant evidence.
 
-Keep one logical change per commit and sign authored commits with `git commit -s`. Add `Fixes:` for regressions and preserve review/provenance trailers. Reverts use `Revert "..."`, identify the original commit, and justify reversal. Imports name the source tree or artifact; use `Change-Id` only for Gerrit.
-
-Pull requests must describe the problem and solution, list exact verification, link issues, and include screenshots, logs, or performance evidence when applicable. Never commit secrets; provide sanitized examples such as `.env.example`.
+Keep one logical change per commit and sign it with `git commit -s`. Use `Fixes:` for regressions. Reverts identify the original commit and justify reversal. PRs must describe the solution, exact verification, linked issues, and UI screenshots or performance evidence when applicable. Never commit credentials, API keys, subscription URLs, or fetched node data.

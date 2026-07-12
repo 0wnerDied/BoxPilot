@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BoxPilot.App.ViewModels"
+             x:Class="BoxPilot.App.Views.ToolsView"
+             x:DataType="vm:ToolsViewModel">
+  <Grid RowDefinitions="Auto,24,Auto,14,*">
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="{DynamicResource ToolsTitle}" Classes="page-title" />
+    </StackPanel>
+
+    <Border Grid.Row="2" Classes="panel">
+      <Grid RowDefinitions="Auto,12,Auto" ColumnDefinitions="*">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+          <TextBox Text="{Binding CommandText}" PlaceholderText="{DynamicResource CommandHint}" />
+          <Button Grid.Column="1" Classes="primary" Content="{DynamicResource RunCommand}"
+                  Command="{Binding RunCommand}" IsEnabled="{Binding !Session.IsBusy}" />
+        </Grid>
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+          <TextBlock Text="{DynamicResource CommandPresets}" Classes="muted"
+                     FontSize="12" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7">
+            <Button Classes="ghost" Content="version" Command="{Binding UseCommandCommand}"
+                    CommandParameter="version" Padding="10,6" />
+            <Button Classes="ghost" Content="generate rand" Command="{Binding UseCommandCommand}"
+                    CommandParameter="generate rand --hex 32" Padding="10,6" />
+            <Button Classes="ghost" Content="generate uuid" Command="{Binding UseCommandCommand}"
+                    CommandParameter="generate uuid" Padding="10,6" />
+            <Button Classes="ghost" Content="rule-set" Command="{Binding UseCommandCommand}"
+                    CommandParameter="rule-set --help" Padding="10,6" />
+            <Button Classes="ghost" Content="tools" Command="{Binding UseCommandCommand}"
+                    CommandParameter="tools --help" Padding="10,6" />
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="4" Classes="dark-panel" Padding="0">
+      <Grid RowDefinitions="40,1,*">
+        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+          <TextBlock Text="{DynamicResource CommandOutput}" Classes="dark-muted"
+                     FontSize="12" LetterSpacing="0.8" />
+          <TextBlock Grid.Column="1" Text="sing-box" Classes="dark-muted" FontSize="12" />
+        </Grid>
+        <Border Grid.Row="1" Background="#28FFFFFF" />
+        <TextBox Grid.Row="2" Classes="editor" Text="{Binding Output}" IsReadOnly="True"
+                 AcceptsReturn="True" TextWrapping="NoWrap" BorderThickness="0" CornerRadius="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

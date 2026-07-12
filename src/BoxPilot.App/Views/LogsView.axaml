@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:BoxPilot.App.ViewModels"
+             x:Class="BoxPilot.App.Views.LogsView"
+             x:DataType="vm:LogsViewModel">
+  <Grid RowDefinitions="Auto,24,*">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel>
+        <TextBlock Text="{DynamicResource LogsTitle}" Classes="page-title" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12"
+                  VerticalAlignment="Bottom" Margin="0,0,0,2">
+        <CheckBox Content="{DynamicResource AutoScroll}" IsChecked="{Binding AutoScroll}" />
+        <Button Classes="ghost" Content="{DynamicResource Clear}" Command="{Binding ClearCommand}" />
+      </StackPanel>
+    </Grid>
+
+    <Border Grid.Row="2" Classes="dark-panel" Padding="0">
+      <Grid RowDefinitions="40,1,*">
+        <Grid Margin="16,0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+              VerticalAlignment="Center">
+          <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}" />
+          <TextBlock Grid.Column="1" Text="{DynamicResource LiveOutput}" Classes="dark-muted"
+                     FontSize="12" LetterSpacing="0.8" />
+          <TextBlock Grid.Column="2" Text="{Binding Session.Logs.Count}"
+                     Classes="dark-muted" FontSize="12" />
+        </Grid>
+        <Border Grid.Row="1" Background="#28FFFFFF" />
+        <ListBox Grid.Row="2" x:Name="LogList" Classes="log-list"
+                 ItemsSource="{Binding Session.Logs}"
+                 Background="Transparent" BorderThickness="0"
+                 FontFamily="SFMono-Regular, Cascadia Code, Consolas, monospace"
+                 FontSize="12">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="72,88,*" ColumnSpacing="10" Margin="12,3">
+                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                           Foreground="#8E857A" />
+                <TextBlock Grid.Column="1" Text="{Binding Stream}" Foreground="#B98261" />
+                <TextBlock Grid.Column="2" Text="{Binding Message}"
+                           Foreground="{DynamicResource CodeForegroundBrush}" TextWrapping="Wrap" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

@@ -1,0 +1,269 @@
+using System.Globalization;
+using Avalonia;
+
+namespace BoxPilot.App.Services;
+
+public sealed record LanguageOption(string Code, string DisplayName);
+
+public sealed class LocalizationService
+{
+    private static readonly IReadOnlyDictionary<string, string> English =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["AppName"] = "BoxPilot",
+            ["NavDashboard"] = "Dashboard",
+            ["NavProfiles"] = "Profiles",
+            ["NavConfiguration"] = "Configuration",
+            ["NavLogs"] = "Live logs",
+            ["NavTools"] = "Toolbox",
+            ["NavSettings"] = "Settings",
+            ["Core"] = "sing-box core",
+            ["CoreOnline"] = "Core online",
+            ["CoreOffline"] = "Core offline",
+            ["Start"] = "Start",
+            ["Stop"] = "Stop",
+            ["Restart"] = "Restart",
+            ["Status"] = "Status",
+            ["ActiveProfile"] = "Active profile",
+            ["NoProfile"] = "No profile selected",
+            ["ProxyNodes"] = "Proxy nodes",
+            ["ProxySelector"] = "Proxy selector",
+            ["Refresh"] = "Refresh",
+            ["SelectGroup"] = "Select a policy group",
+            ["SelectNode"] = "Select a node",
+            ["Apply"] = "Apply",
+            ["Latency"] = "Latency",
+            ["Version"] = "Version",
+            ["MixedProxy"] = "Mixed proxy",
+            ["Enabled"] = "Enabled",
+            ["Disabled"] = "Disabled",
+            ["Starting"] = "Starting",
+            ["Running"] = "Running",
+            ["Stopping"] = "Stopping",
+            ["Stopped"] = "Stopped",
+            ["Faulted"] = "Faulted",
+            ["Upload"] = "Upload",
+            ["Download"] = "Download",
+            ["RefreshSubscription"] = "Refresh subscription",
+            ["ProfilesTitle"] = "Profiles & subscriptions",
+            ["ImportSection"] = "Add a source",
+            ["ProfileLibrary"] = "Profile library",
+            ["DeleteProfileQuestion"] = "Delete this profile?",
+            ["DeleteProfileHint"] = "Its local configuration and unsaved draft will be removed.",
+            ["Cancel"] = "Cancel",
+            ["ConfirmDelete"] = "Delete profile",
+            ["SubscriptionName"] = "Profile name",
+            ["SubscriptionUrl"] = "Subscription URL",
+            ["Import"] = "Import subscription",
+            ["CreateBlank"] = "Create blank profile",
+            ["Update"] = "Update",
+            ["Delete"] = "Delete",
+            ["Nodes"] = "nodes",
+            ["ManualProfile"] = "Manual profile",
+            ["ConfigurationTitle"] = "Configuration editor",
+            ["UnsavedChanges"] = "Unsaved changes",
+            ["ChangesSaved"] = "All changes saved",
+            ["SaveChangesBeforeUpdate"] = "Save or discard configuration changes before updating the subscription.",
+            ["ConfigurationValid"] = "Configuration is valid",
+            ["RestartToApply"] = "Saved. Restart the connection to apply these changes.",
+            ["Save"] = "Save",
+            ["Format"] = "Format",
+            ["Validate"] = "Validate",
+            ["JsonPlaceholder"] = "Select a profile to edit its sing-box JSON.",
+            ["LogsTitle"] = "Live core logs",
+            ["RecentLogs"] = "Recent logs",
+            ["NoRecentLogs"] = "No logs yet",
+            ["LiveOutput"] = "LIVE OUTPUT",
+            ["Clear"] = "Clear",
+            ["AutoScroll"] = "Auto scroll",
+            ["ToolsTitle"] = "sing-box toolbox",
+            ["CommandPresets"] = "QUICK COMMANDS",
+            ["Command"] = "Command arguments",
+            ["RunCommand"] = "Run command",
+            ["CommandHint"] = "Example: generate rand --hex 32",
+            ["CommandOutput"] = "Command output",
+            ["SettingsTitle"] = "Application settings",
+            ["Appearance"] = "Appearance",
+            ["Theme"] = "Theme",
+            ["Language"] = "Language",
+            ["System"] = "System",
+            ["Light"] = "Light",
+            ["Dark"] = "Dark",
+            ["CoreSettings"] = "Core & networking",
+            ["CorePath"] = "sing-box executable",
+            ["MixedPort"] = "Mixed proxy port",
+            ["ApiPort"] = "Clash API port",
+            ["SystemProxy"] = "Set the operating-system proxy while running",
+            ["TunMode"] = "Enable TUN mode (administrator privileges may be required)",
+            ["NetworkChangesHint"] = "Saving network changes restarts a running connection. TUN may ask for elevated privileges.",
+            ["LaunchSettings"] = "Launch behavior",
+            ["StartOnLaunch"] = "Start core when BoxPilot opens",
+            ["CloseToTray"] = "Keep running when the main window closes",
+            ["SaveSettings"] = "Save settings",
+            ["DataDirectory"] = "Open data directory",
+            ["Quit"] = "Quit",
+            ["Subscription"] = "Subscription",
+            ["SubscriptionNamePlaceholder"] = "My subscription",
+            ["ConfigurationValidationLabel"] = "JSON",
+            ["Timeout"] = "Timeout",
+            ["Warnings"] = "warnings",
+            ["CoreNotFound"] = "Not found",
+            ["CoreNotFoundHelp"] = "sing-box was not found. Choose its executable in Settings.",
+            ["InvalidSubscriptionUrl"] = "The subscription URL is invalid.",
+            ["ProcessExited"] = "Process exited with code {0}.",
+            ["SubscriptionCurrent"] = "Subscription is already up to date",
+            ["ExitSuccess"] = "Command completed",
+            ["ExitCode"] = "Command exited with code {0}",
+            ["Ready"] = "Ready",
+            ["Working"] = "Working…",
+            ["AboutSecurity"] = "Subscription URLs and credentials stay in your local application-data directory.",
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> SimplifiedChinese =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["AppName"] = "BoxPilot",
+            ["NavDashboard"] = "仪表盘",
+            ["NavProfiles"] = "配置与订阅",
+            ["NavConfiguration"] = "配置编辑器",
+            ["NavLogs"] = "实时日志",
+            ["NavTools"] = "工具箱",
+            ["NavSettings"] = "设置",
+            ["Core"] = "sing-box 内核",
+            ["CoreOnline"] = "内核运行中",
+            ["CoreOffline"] = "内核已停止",
+            ["Start"] = "启动",
+            ["Stop"] = "停止",
+            ["Restart"] = "重启",
+            ["Status"] = "运行状态",
+            ["ActiveProfile"] = "当前配置",
+            ["NoProfile"] = "尚未选择配置",
+            ["ProxyNodes"] = "代理节点",
+            ["ProxySelector"] = "代理选择",
+            ["Refresh"] = "刷新",
+            ["SelectGroup"] = "选择策略组",
+            ["SelectNode"] = "选择节点",
+            ["Apply"] = "应用",
+            ["Latency"] = "延迟测试",
+            ["Version"] = "版本",
+            ["MixedProxy"] = "混合代理",
+            ["Enabled"] = "已启用",
+            ["Disabled"] = "未启用",
+            ["Starting"] = "正在启动",
+            ["Running"] = "运行中",
+            ["Stopping"] = "正在停止",
+            ["Stopped"] = "已停止",
+            ["Faulted"] = "异常",
+            ["Upload"] = "上传速度",
+            ["Download"] = "下载速度",
+            ["RefreshSubscription"] = "更新订阅",
+            ["ProfilesTitle"] = "配置与订阅",
+            ["ImportSection"] = "添加来源",
+            ["ProfileLibrary"] = "配置库",
+            ["DeleteProfileQuestion"] = "要删除这个配置吗？",
+            ["DeleteProfileHint"] = "本地配置和未保存的草稿都会被移除。",
+            ["Cancel"] = "取消",
+            ["ConfirmDelete"] = "删除配置",
+            ["SubscriptionName"] = "配置名称",
+            ["SubscriptionUrl"] = "订阅地址",
+            ["Import"] = "导入订阅",
+            ["CreateBlank"] = "新建空白配置",
+            ["Update"] = "更新",
+            ["Delete"] = "删除",
+            ["Nodes"] = "个节点",
+            ["ManualProfile"] = "手动配置",
+            ["ConfigurationTitle"] = "配置编辑器",
+            ["UnsavedChanges"] = "有未保存的修改",
+            ["ChangesSaved"] = "修改已全部保存",
+            ["SaveChangesBeforeUpdate"] = "请先保存或放弃配置修改，再更新订阅。",
+            ["ConfigurationValid"] = "配置验证通过",
+            ["RestartToApply"] = "配置已保存，重启连接后生效。",
+            ["Save"] = "保存",
+            ["Format"] = "格式化",
+            ["Validate"] = "验证配置",
+            ["JsonPlaceholder"] = "请选择一个配置以编辑 sing-box JSON。",
+            ["LogsTitle"] = "内核实时日志",
+            ["RecentLogs"] = "最近日志",
+            ["NoRecentLogs"] = "暂无日志",
+            ["LiveOutput"] = "实时输出",
+            ["Clear"] = "清空",
+            ["AutoScroll"] = "自动滚动",
+            ["ToolsTitle"] = "sing-box 工具箱",
+            ["CommandPresets"] = "快捷命令",
+            ["Command"] = "命令参数",
+            ["RunCommand"] = "运行命令",
+            ["CommandHint"] = "示例：generate rand --hex 32",
+            ["CommandOutput"] = "命令输出",
+            ["SettingsTitle"] = "应用设置",
+            ["Appearance"] = "外观",
+            ["Theme"] = "主题",
+            ["Language"] = "界面语言",
+            ["System"] = "跟随系统",
+            ["Light"] = "浅色",
+            ["Dark"] = "深色",
+            ["CoreSettings"] = "内核与网络",
+            ["CorePath"] = "sing-box 可执行文件",
+            ["MixedPort"] = "混合代理端口",
+            ["ApiPort"] = "Clash API 端口",
+            ["SystemProxy"] = "运行时自动设置系统代理",
+            ["TunMode"] = "启用 TUN 模式（可能需要管理员权限）",
+            ["NetworkChangesHint"] = "保存网络设置会重启正在运行的连接；TUN 可能请求管理员权限。",
+            ["LaunchSettings"] = "启动行为",
+            ["StartOnLaunch"] = "BoxPilot 启动时运行内核",
+            ["CloseToTray"] = "关闭主窗口后继续在后台运行",
+            ["SaveSettings"] = "保存设置",
+            ["DataDirectory"] = "打开数据目录",
+            ["Quit"] = "退出",
+            ["Subscription"] = "订阅",
+            ["SubscriptionNamePlaceholder"] = "我的订阅",
+            ["ConfigurationValidationLabel"] = "JSON",
+            ["Timeout"] = "超时",
+            ["Warnings"] = "条警告",
+            ["CoreNotFound"] = "未找到",
+            ["CoreNotFoundHelp"] = "未找到 sing-box，请在设置中选择内核可执行文件。",
+            ["InvalidSubscriptionUrl"] = "订阅地址无效。",
+            ["ProcessExited"] = "进程退出，状态码为 {0}。",
+            ["SubscriptionCurrent"] = "订阅已经是最新版本",
+            ["ExitSuccess"] = "命令执行完成",
+            ["ExitCode"] = "命令退出，状态码为 {0}",
+            ["Ready"] = "就绪",
+            ["Working"] = "处理中…",
+            ["AboutSecurity"] = "订阅地址与凭据仅存储在本机应用数据目录中。",
+        };
+
+    private IReadOnlyDictionary<string, string> current = SimplifiedChinese;
+
+    public event Action? LanguageChanged;
+
+    public IReadOnlyList<LanguageOption> Languages { get; } =
+    [
+        new("zh-CN", "简体中文"),
+        new("en-US", "English"),
+    ];
+
+    public string CurrentLanguage { get; private set; } = "zh-CN";
+
+    public string this[string key] => current.GetValueOrDefault(key, key);
+
+    public void Apply(string? language)
+    {
+        CurrentLanguage = string.Equals(language, "en-US", StringComparison.OrdinalIgnoreCase)
+            ? "en-US"
+            : "zh-CN";
+        current = CurrentLanguage == "en-US" ? English : SimplifiedChinese;
+
+        var culture = CultureInfo.GetCultureInfo(CurrentLanguage);
+        CultureInfo.CurrentCulture = culture;
+        CultureInfo.CurrentUICulture = culture;
+        CultureInfo.DefaultThreadCurrentCulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
+
+        if (Application.Current?.Resources is { } resources)
+        {
+            foreach (var pair in current)
+                resources[pair.Key] = pair.Value;
+        }
+
+        LanguageChanged?.Invoke();
+    }
+}

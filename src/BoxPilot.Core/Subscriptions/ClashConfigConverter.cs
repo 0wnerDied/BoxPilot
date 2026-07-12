@@ -1,0 +1,302 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using BoxPilot.Core.Models;
+using BoxPilot.Core.Services;
+
+namespace BoxPilot.Core.Subscriptions;
+
+internal sealed class ClashConfigConverter(SingBoxConfigService configService)
+{
+    public SubscriptionImportResult Convert(JsonObject clash, SubscriptionBuildOptions options)
+    {
+        var warnings = new List<string>();
+        if (clash["proxy-providers"] is JsonObject providers && providers.Count > 0)
+        {
+            warnings.Add(
+                "Clash proxy-providers are not fetched recursively; import their URLs as separate subscriptions.");
+        }
+
+        var proxies = JsonValueReader.Array(clash, "proxies") ?? [];
+        var allocator = new SingBoxConfigurationBuilder.TagAllocator();
+        allocator.Allocate("direct");
+        allocator.Allocate("block");
+
+        var tagMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DIRECT"] = "direct",
+            ["REJECT"] = "block",
+            ["REJECT-DROP"] = "block",
+            ["PASS"] = "direct",
+        };
+        var outbounds = new JsonArray();
+        var nodeTags = new List<string>();
+
+        foreach (var proxy in proxies.OfType<JsonObject>())
+        {
+            var converted = ClashProxyConverter.Convert(proxy, warnings);
+            if (converted is null)
+                continue;
+
+            var originalTag = JsonValueReader.String(converted, "tag") ?? "Proxy";
+            var tag = allocator.Allocate(originalTag);
+            if (!tagMap.TryAdd(originalTag, tag))
+                warnings.Add($"Duplicate Clash proxy name '{originalTag}' was renamed to '{tag}'.");
+            converted["tag"] = tag;
+            outbounds.Add(converted);
+            nodeTags.Add(tag);
+        }
+
+        if (nodeTags.Count == 0)
+            throw new InvalidDataException("The Clash subscription did not contain supported proxy nodes.");
+
+        var groupSources = JsonValueReader.Array(clash, "proxy-groups")?.OfType<JsonObject>().ToArray()
+                           ?? [];
+        var groupTags = new Dictionary<JsonObject, string>();
+        foreach (var group in groupSources)
+        {
+            var name = JsonValueReader.String(group, "name") ?? "Proxy";
+            var tag = allocator.Allocate(name);
+            groupTags[group] = tag;
+            tagMap[name] = tag;
+        }
+
+        foreach (var group in groupSources)
+        {
+            var converted = ConvertGroup(group, groupTags[group], tagMap, nodeTags, warnings);
+            if (converted is not null)
+                outbounds.Add(converted);
+        }
+
+        string defaultOutbound;
+        if (groupSources.Length > 0)
+        {
+            defaultOutbound = groupTags[groupSources[0]];
+        }
+        else
+        {
+            defaultOutbound = allocator.Allocate("Proxy");
+            outbounds.Add(new JsonObject
+            {
+                ["type"] = "selector",
+                ["tag"] = defaultOutbound,
+                ["outbounds"] = new JsonArray(nodeTags.Select(static tag => JsonValue.Create(tag)).ToArray()),
+                ["default"] = nodeTags[0],
+                ["interrupt_exist_connections"] = true,
+            });
+        }
+
+        outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
+        outbounds.Add(new JsonObject { ["type"] = "block", ["tag"] = "block" });
+
+        var configuration = SingBoxConfigurationBuilder.CreateBaseConfiguration(outbounds, defaultOutbound);
+        var route = configuration["route"]!.AsObject();
+        var routeRules = route["rules"]!.AsArray();
+        var finalOutbound = ConvertRules(
+            JsonValueReader.Array(clash, "rules"),
+            tagMap,
+            routeRules,
+            defaultOutbound,
+            warnings);
+        route["final"] = finalOutbound;
+
+        configuration = configService.ApplyRuntimeOptions(
+            configuration,
+            SingBoxConfigurationBuilder.ToSettings(options));
+        return new SubscriptionImportResult(
+            SubscriptionFormat.ClashYaml,
+            configuration,
+            nodeTags.Count,
+            warnings.Distinct(StringComparer.Ordinal).ToArray());
+    }
+
+    private static JsonObject? ConvertGroup(
+        JsonObject source,
+        string tag,
+        IReadOnlyDictionary<string, string> tagMap,
+        IReadOnlyList<string> nodeTags,
+        ICollection<string> warnings)
+    {
+        var type = JsonValueReader.String(source, "type")?.ToLowerInvariant() ?? "select";
+        var members = JsonValueReader.Array(source, "proxies")?
+            .Select(item => item?.ToString())
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => MapTarget(item!, tagMap))
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
+
+        if (members.Length == 0)
+            members = nodeTags.ToArray();
+
+        if (type is "url-test" or "fallback" or "load-balance")
+        {
+            if (type is "fallback" or "load-balance")
+            {
+                warnings.Add(
+                    $"Clash group '{tag}' uses '{type}'; mapped to sing-box URLTest semantics.");
+            }
+
+            var urlTest = new JsonObject
+            {
+                ["type"] = "urltest",
+                ["tag"] = tag,
+                ["outbounds"] = new JsonArray(members.Select(static member => JsonValue.Create(member)).ToArray()),
+                ["url"] = JsonValueReader.String(source, "url")
+                          ?? "https://www.gstatic.com/generate_204",
+                ["interval"] = NormalizeInterval(JsonValueReader.String(source, "interval")),
+                ["tolerance"] = JsonValueReader.Integer(source, "tolerance") ?? 50,
+                ["interrupt_exist_connections"] = true,
+            };
+            return urlTest;
+        }
+
+        if (type is "relay")
+        {
+            warnings.Add($"Clash relay group '{tag}' was mapped to a manual selector.");
+        }
+        else if (type is not "select")
+        {
+            warnings.Add($"Unknown Clash group type '{type}' in '{tag}' was mapped to a selector.");
+        }
+
+        return new JsonObject
+        {
+            ["type"] = "selector",
+            ["tag"] = tag,
+            ["outbounds"] = new JsonArray(members.Select(static member => JsonValue.Create(member)).ToArray()),
+            ["default"] = members[0],
+            ["interrupt_exist_connections"] = true,
+        };
+    }
+
+    private static string ConvertRules(
+        JsonArray? sourceRules,
+        IReadOnlyDictionary<string, string> tagMap,
+        JsonArray destination,
+        string defaultOutbound,
+        ICollection<string> warnings)
+    {
+        if (sourceRules is null)
+            return defaultOutbound;
+
+        var unsupported = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var finalOutbound = defaultOutbound;
+
+        foreach (var ruleNode in sourceRules)
+        {
+            var ruleText = ruleNode?.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(ruleText) || ruleText.StartsWith('#'))
+                continue;
+
+            var fields = ruleText.Split(',', StringSplitOptions.TrimEntries);
+            var type = fields[0].ToUpperInvariant();
+            if (type is "MATCH" or "FINAL")
+            {
+                if (fields.Length > 1)
+                    finalOutbound = MapTarget(fields[1], tagMap) ?? defaultOutbound;
+                continue;
+            }
+
+            if (fields.Length < 3)
+            {
+                Increment(unsupported, type);
+                continue;
+            }
+
+            var target = MapTarget(fields[2], tagMap);
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                Increment(unsupported, type);
+                continue;
+            }
+
+            var rule = new JsonObject
+            {
+                ["action"] = "route",
+                ["outbound"] = target,
+            };
+            var value = fields[1];
+
+            switch (type)
+            {
+                case "DOMAIN":
+                    rule["domain"] = new JsonArray(value);
+                    break;
+                case "DOMAIN-SUFFIX":
+                    rule["domain_suffix"] = new JsonArray(value.TrimStart('.'));
+                    break;
+                case "DOMAIN-KEYWORD":
+                    rule["domain_keyword"] = new JsonArray(value);
+                    break;
+                case "DOMAIN-REGEX":
+                    rule["domain_regex"] = new JsonArray(value);
+                    break;
+                case "IP-CIDR":
+                case "IP-CIDR6":
+                    rule["ip_cidr"] = new JsonArray(value);
+                    break;
+                case "SRC-IP-CIDR":
+                    rule["source_ip_cidr"] = new JsonArray(value);
+                    break;
+                case "DST-PORT":
+                    AddPort(rule, value, "port", "port_range");
+                    break;
+                case "SRC-PORT":
+                    AddPort(rule, value, "source_port", "source_port_range");
+                    break;
+                case "PROCESS-NAME":
+                    rule["process_name"] = new JsonArray(value);
+                    break;
+                case "PROCESS-PATH":
+                    rule["process_path"] = new JsonArray(value);
+                    break;
+                case "NETWORK":
+                    rule["network"] = value.ToLowerInvariant();
+                    break;
+                case "IN-TYPE":
+                    rule["inbound"] = new JsonArray(value);
+                    break;
+                default:
+                    Increment(unsupported, type);
+                    continue;
+            }
+
+            destination.Add(rule);
+        }
+
+        foreach (var item in unsupported.OrderBy(static item => item.Key, StringComparer.Ordinal))
+        {
+            warnings.Add($"Ignored {item.Value} Clash '{item.Key}' rule(s) without a direct sing-box mapping.");
+        }
+
+        return finalOutbound;
+    }
+
+    private static void AddPort(JsonObject rule, string value, string portName, string rangeName)
+    {
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
+            rule[portName] = new JsonArray(port);
+        else
+            rule[rangeName] = new JsonArray(value.Replace('-', ':'));
+    }
+
+    private static string? MapTarget(string value, IReadOnlyDictionary<string, string> tagMap)
+    {
+        return tagMap.TryGetValue(value.Trim(), out var mapped) ? mapped : null;
+    }
+
+    private static string NormalizeInterval(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "3m";
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
+            return $"{Math.Max(seconds, 10)}s";
+        return value;
+    }
+
+    private static void Increment(IDictionary<string, int> values, string key)
+    {
+        values[key] = values.TryGetValue(key, out var count) ? count + 1 : 1;
+    }
+}
