@@ -8,7 +8,7 @@ namespace BoxPilot.Core.Tests;
 public sealed class ClashApiClientTests
 {
     [Fact]
-    public async Task GetProxyChoicesReturnsOnlyWritableSelectorsInSourceOrder()
+    public async Task GetProxyChoicesReturnsSubscriptionPolicyGroupsInSourceOrder()
     {
         const string responseJson = """
             {
@@ -55,7 +55,11 @@ public sealed class ClashApiClientTests
 
         var groups = await client.GetProxyChoicesAsync();
 
-        Assert.Equal(["Proxy", "Nested"], groups.Select(static group => group.Group));
+        Assert.Equal(["Proxy", "Nested", "Auto"], groups.Select(static group => group.Group));
+        Assert.True(groups[0].IsSelectable);
+        Assert.Equal("Selector", groups[0].Type);
+        Assert.False(groups[2].IsSelectable);
+        Assert.Equal("URLTest", groups[2].Type);
         var node = groups[0].Options[0];
         Assert.Equal("日本 A01", node.Name);
         Assert.Equal("VLESS", node.Type);

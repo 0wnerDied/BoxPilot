@@ -102,7 +102,7 @@
                     <StackPanel Spacing="3">
                       <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
                                  TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Selected}" Classes="muted" FontSize="13"
+                      <TextBlock Text="{Binding SelectionDisplay}" Classes="muted" FontSize="13"
                                  TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
@@ -126,7 +126,7 @@
               <StackPanel Spacing="2">
                 <TextBlock Text="{Binding SelectedGroup.Name, FallbackValue=—}"
                            Classes="section-title" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding SelectedNodeDisplay, StringFormat='{}{0}'}"
+                <TextBlock Text="{Binding SelectedGroup.SelectionDisplay, FallbackValue=—}"
                            Classes="muted" FontSize="13" TextTrimming="CharacterEllipsis" />
               </StackPanel>
               <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource TestAll}"
@@ -155,7 +155,7 @@
                   <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
                     <Grid ColumnDefinitions="*,44">
                       <Button Classes="node-select" Command="{Binding SelectCommand}"
-                              IsEnabled="{Binding !IsApplying}">
+                              IsEnabled="{Binding CanApplySelection}">
                         <Grid ColumnDefinitions="18,*,96" ColumnSpacing="10">
                           <Grid Width="10" Height="10" VerticalAlignment="Center">
                             <Ellipse Fill="{DynamicResource CardBorderBrush}" />

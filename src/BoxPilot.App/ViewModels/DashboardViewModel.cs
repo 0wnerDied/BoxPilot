@@ -43,8 +43,6 @@ public partial class DashboardViewModel(
 
     public bool HasVisibleNodes => VisibleNodes.Count > 0;
 
-    public string SelectedNodeDisplay => SelectedGroup?.Selected ?? "—";
-
     public string GroupCountDisplay => $"{ProxyGroups.Count}";
 
     public string NodeCountDisplay
@@ -178,7 +176,6 @@ public partial class DashboardViewModel(
     partial void OnSelectedGroupChanged(ProxyGroupItemViewModel? value)
     {
         RebuildVisibleNodes();
-        OnPropertyChanged(nameof(SelectedNodeDisplay));
         OnPropertyChanged(nameof(NodeCountDisplay));
     }
 
@@ -194,14 +191,14 @@ public partial class DashboardViewModel(
 
     private async Task SelectNodeAsync(ProxyNodeItemViewModel node)
     {
-        if (!Session.IsCoreRunning || IsSwitchingNode || node.IsSelected)
+        if (!Session.IsCoreRunning || IsSwitchingNode || node.IsSelected || !node.CanSelect)
             return;
 
         var group = ProxyGroups.FirstOrDefault(item => string.Equals(
             item.Name,
             node.Group,
             StringComparison.Ordinal));
-        if (group is null)
+        if (group is null || !group.IsSelectable)
             return;
 
         IsSwitchingNode = true;
@@ -211,7 +208,6 @@ public partial class DashboardViewModel(
             using var client = CreateApiClient();
             await client.SelectProxyAsync(group.Name, node.Name);
             group.Select(node.Name);
-            OnPropertyChanged(nameof(SelectedNodeDisplay));
             Session.Toast.Show(
                 $"{localization["NodeSelected"]}: {node.Name}",
                 ToastLevel.Success);

@@ -53,6 +53,8 @@ public sealed record ProxyNode(
 
 public sealed record ProxyChoice(
     string Group,
+    string Type,
+    bool IsSelectable,
     string Selected,
     IReadOnlyList<ProxyNode> Options);
 

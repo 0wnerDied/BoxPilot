@@ -8,6 +8,8 @@ namespace BoxPilot.App.ViewModels;
 
 public sealed partial class ProxyGroupItemViewModel : ViewModelBase
 {
+    private readonly LocalizationService localization;
+
     public ProxyGroupItemViewModel(
         ProxyChoice choice,
         LocalizationService localization,
@@ -15,12 +17,22 @@ public sealed partial class ProxyGroupItemViewModel : ViewModelBase
         Func<ProxyNodeItemViewModel, Task> test)
     {
         Name = choice.Group;
+        IsSelectable = choice.IsSelectable;
         Nodes = new ObservableCollection<ProxyNodeItemViewModel>(choice.Options.Select(node =>
-            new ProxyNodeItemViewModel(choice.Group, node, localization, select, test)));
+            new ProxyNodeItemViewModel(
+                choice.Group,
+                node,
+                choice.IsSelectable,
+                localization,
+                select,
+                test)));
         Selected = choice.Selected;
+        this.localization = localization;
     }
 
     public string Name { get; }
+
+    public bool IsSelectable { get; }
 
     public ObservableCollection<ProxyNodeItemViewModel> Nodes { get; }
 
@@ -29,15 +41,21 @@ public sealed partial class ProxyGroupItemViewModel : ViewModelBase
 
     public string CountDisplay => $"{Nodes.Count}";
 
+    public string SelectionDisplay => IsSelectable
+        ? Selected
+        : string.IsNullOrWhiteSpace(Selected)
+            ? localization["AutomaticGroup"]
+            : $"{localization["AutomaticGroup"]} · {Selected}";
+
     public void Select(string name)
     {
         Selected = name;
-        UpdateSelection();
     }
 
     partial void OnSelectedChanged(string value)
     {
         UpdateSelection();
+        OnPropertyChanged(nameof(SelectionDisplay));
     }
 
     private void UpdateSelection()
@@ -61,6 +79,7 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
     public ProxyNodeItemViewModel(
         string group,
         ProxyNode node,
+        bool canSelect,
         LocalizationService localization,
         Func<ProxyNodeItemViewModel, Task> select,
         Func<ProxyNodeItemViewModel, Task> test)
@@ -70,6 +89,7 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
         Type = node.Type;
         SupportsUdp = node.SupportsUdp;
         IsGroup = node.IsGroup;
+        CanSelect = canSelect;
         Delay = node.Delay;
         this.localization = localization;
         this.select = select;
@@ -85,6 +105,10 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
     public bool SupportsUdp { get; }
 
     public bool IsGroup { get; }
+
+    public bool CanSelect { get; }
+
+    public bool CanApplySelection => CanSelect && !IsApplying;
 
     public string TypeDisplay => SupportsUdp ? $"{Type} · UDP" : Type;
 
@@ -118,7 +142,7 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
     [RelayCommand]
     private Task SelectAsync()
     {
-        return select(this);
+        return CanSelect ? select(this) : Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -135,6 +159,11 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
     partial void OnIsTestingChanged(bool value)
     {
         NotifyDelayState();
+    }
+
+    partial void OnIsApplyingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanApplySelection));
     }
 
     private void NotifyDelayState()

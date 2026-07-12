@@ -52,15 +52,15 @@ public sealed class ClashApiClient : IDisposable
         return proxies
             .Where(static pair => pair.Value is JsonObject value
                                   && value["all"] is JsonArray
-                                  && string.Equals(
-                                      value["type"]?.ToString(),
-                                      "Selector",
-                                      StringComparison.OrdinalIgnoreCase))
+                                  && IsPolicyGroup(value["type"]?.ToString()))
             .Select(pair =>
             {
                 var value = pair.Value!.AsObject();
+                var type = value["type"]?.ToString() ?? string.Empty;
                 return new ProxyChoice(
                     pair.Key,
+                    type,
+                    string.Equals(type, "Selector", StringComparison.OrdinalIgnoreCase),
                     value["now"]?.ToString() ?? string.Empty,
                     value["all"]!.AsArray()
                         .Select(item => CreateProxyNode(item?.ToString(), proxies))
@@ -69,6 +69,12 @@ public sealed class ClashApiClient : IDisposable
                         .ToArray());
             })
             .ToArray();
+    }
+
+    private static bool IsPolicyGroup(string? type)
+    {
+        return string.Equals(type, "Selector", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(type, "URLTest", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task SelectProxyAsync(
