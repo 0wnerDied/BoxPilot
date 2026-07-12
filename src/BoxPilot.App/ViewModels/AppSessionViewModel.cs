@@ -193,6 +193,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SelectedProfile = profile;
         suppressProfileLoad = false;
         var storedConfiguration = await profileRepository.ReadConfigurationAsync(profile, cancellationToken);
+        storedConfiguration = await NormalizeSubscriptionJsonAsync(
+            profile,
+            storedConfiguration,
+            cancellationToken);
         var selectedConfiguration = configurationDrafts.SwitchTo(
             profile.Id,
             storedConfiguration,
@@ -593,6 +597,31 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         ConfigurationText = value;
         suppressConfigurationDirty = false;
         IsConfigurationDirty = isDirty;
+    }
+
+    private async Task<string> NormalizeSubscriptionJsonAsync(
+        Profile profile,
+        string configuration,
+        CancellationToken cancellationToken)
+    {
+        if (profile.Source != ProfileSource.Subscription
+            || !configuration.Contains("\\u", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuration;
+        }
+
+        // Older builds escaped every non-ASCII character in generated profiles.
+        // Preserve manual formatting while migrating app-owned subscription JSON.
+        var normalized = configService.FormatJson(configuration);
+        if (!string.Equals(normalized, configuration, StringComparison.Ordinal))
+        {
+            await profileRepository.WriteConfigurationAsync(
+                profile,
+                normalized,
+                cancellationToken);
+        }
+
+        return normalized;
     }
 
     private Task RunBusyAsync(Func<Task> operation)

@@ -27,7 +27,7 @@ public sealed class SettingsStore(AppPaths paths)
             await using var stream = File.OpenRead(paths.SettingsFile);
             settings = await JsonSerializer.DeserializeAsync(
                     stream,
-                    BoxPilotJsonContext.Default.AppSettings,
+                    JsonDefaults.Context.AppSettings,
                     cancellationToken)
                 .ConfigureAwait(false)
                 ?? CreateDefault();
@@ -77,7 +77,7 @@ public sealed class SettingsStore(AppPaths paths)
 
     private Task SaveCoreAsync(AppSettings settings, CancellationToken cancellationToken)
     {
-        var json = JsonSerializer.Serialize(settings, BoxPilotJsonContext.Default.AppSettings);
+        var json = JsonSerializer.Serialize(settings, JsonDefaults.Context.AppSettings);
         return AtomicFile.WriteAllTextAsync(paths.SettingsFile, json, cancellationToken);
     }
 }

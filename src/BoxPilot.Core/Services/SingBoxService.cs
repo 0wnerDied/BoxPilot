@@ -306,6 +306,8 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             FileName = ExecutablePath,
             UseShellExecute = false,
             CreateNoWindow = true,
+            StandardOutputEncoding = Utf8Text.Strict,
+            StandardErrorEncoding = Utf8Text.Strict,
         };
 
         foreach (var argument in arguments)

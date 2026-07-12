@@ -1,11 +1,7 @@
-using System.Text;
-
 namespace BoxPilot.Core.Infrastructure;
 
 internal static class AtomicFile
 {
-    private static readonly UTF8Encoding Utf8WithoutBom = new(false);
-
     public static async Task WriteAllTextAsync(
         string path,
         string content,
@@ -24,7 +20,7 @@ internal static class AtomicFile
 
         try
         {
-            await File.WriteAllTextAsync(temporaryPath, content, Utf8WithoutBom, cancellationToken)
+            await File.WriteAllTextAsync(temporaryPath, content, Utf8Text.Strict, cancellationToken)
                 .ConfigureAwait(false);
             RestrictFilePermissions(temporaryPath);
             File.Move(temporaryPath, path, true);

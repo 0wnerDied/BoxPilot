@@ -1,12 +1,26 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Infrastructure;
 
 internal static class JsonDefaults
 {
-    public static JsonSerializerOptions SerializerOptions => BoxPilotJsonContext.Default.Options;
+    private static readonly JsonSerializerOptions Options = CreateOptions();
+
+    public static JsonSerializerOptions SerializerOptions => Options;
+
+    public static BoxPilotJsonContext Context { get; } = new(Options);
+
+    private static JsonSerializerOptions CreateOptions()
+    {
+        return new JsonSerializerOptions(BoxPilotJsonContext.Default.Options)
+        {
+            Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
+        };
+    }
 }
 
 [JsonSourceGenerationOptions(

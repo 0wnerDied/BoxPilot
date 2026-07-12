@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BoxPilot.Core.Infrastructure;
 
 namespace BoxPilot.Core.Subscriptions;
 
@@ -297,7 +298,14 @@ internal static class ProxyUriParser
     {
         var normalized = value.Trim().Replace('-', '+').Replace('_', '/');
         normalized = normalized.PadRight(normalized.Length + ((4 - normalized.Length % 4) % 4), '=');
-        return Encoding.UTF8.GetString(Convert.FromBase64String(normalized));
+        try
+        {
+            return Utf8Text.Strict.GetString(Convert.FromBase64String(normalized));
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw new FormatException("The Base64 payload is not valid UTF-8.", exception);
+        }
     }
 
     private static void CopyQuery(

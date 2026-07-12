@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Services;
@@ -117,8 +118,7 @@ public sealed class SubscriptionClient : IDisposable
         }
 
         buffer.Position = 0;
-        using var reader = new StreamReader(buffer, detectEncodingFromByteOrderMarks: true);
-        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        return await Utf8Text.ReadToEndAsync(buffer, cancellationToken).ConfigureAwait(false);
     }
 
     private static int? ParsePositiveIntegerHeader(HttpResponseMessage response, string name)

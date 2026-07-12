@@ -117,7 +117,9 @@ public sealed class ProfileRepository(AppPaths paths)
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return await File.ReadAllTextAsync(paths.GetProfileConfigPath(profile), cancellationToken)
+        return await Utf8Text.ReadAllTextAsync(
+                paths.GetProfileConfigPath(profile),
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -150,7 +152,7 @@ public sealed class ProfileRepository(AppPaths paths)
             await using var stream = File.OpenRead(paths.ProfileIndexFile);
             return await JsonSerializer.DeserializeAsync(
                     stream,
-                    BoxPilotJsonContext.Default.ProfileIndex,
+                    JsonDefaults.Context.ProfileIndex,
                     cancellationToken)
                 .ConfigureAwait(false)
                 ?? new ProfileIndex();
@@ -163,7 +165,7 @@ public sealed class ProfileRepository(AppPaths paths)
 
     private Task SaveIndexAsync(ProfileIndex index, CancellationToken cancellationToken)
     {
-        var json = JsonSerializer.Serialize(index, BoxPilotJsonContext.Default.ProfileIndex);
+        var json = JsonSerializer.Serialize(index, JsonDefaults.Context.ProfileIndex);
         return AtomicFile.WriteAllTextAsync(paths.ProfileIndexFile, json, cancellationToken);
     }
 }

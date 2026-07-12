@@ -69,6 +69,19 @@ public sealed class SubscriptionParserTests : IDisposable
     }
 
     [Fact]
+    public void ParseBase64UriListRejectsInvalidUtf8()
+    {
+        var prefix = Encoding.UTF8.GetBytes("trojan://secret@example.com:443#");
+        var bytes = new byte[prefix.Length + 1];
+        prefix.CopyTo(bytes, 0);
+        bytes[^1] = 0xff;
+        var subscription = Convert.ToBase64String(bytes);
+        var parser = CreateParser();
+
+        Assert.Throws<InvalidDataException>(() => parser.Parse(subscription, CreateOptions()));
+    }
+
+    [Fact]
     public void ParseSingBoxJsonPreservesUnknownTopLevelFeatures()
     {
         const string json = """
