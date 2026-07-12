@@ -123,6 +123,11 @@ public sealed class SingBoxConfigService(
 
         var route = EnsureObject(clone, "route");
         route["auto_detect_interface"] = true;
+        if (!OperatingSystem.IsAndroid())
+        {
+            // sing-box rejects this Android-only option before starting on desktop.
+            route.Remove("override_android_vpn");
+        }
 
         return clone;
     }

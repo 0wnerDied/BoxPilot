@@ -87,6 +87,22 @@ public sealed class SubscriptionParserTests : IDisposable
         Assert.NotNull(result.Configuration["experimental"]?["clash_api"]);
     }
 
+    [Fact]
+    public void ParseSingBoxJsonRemovesAndroidOnlyRouteOptionOnDesktop()
+    {
+        const string json = """
+                            {
+                              "outbounds": [{ "type": "direct", "tag": "direct" }],
+                              "route": { "final": "direct", "override_android_vpn": true }
+                            }
+                            """;
+        var parser = CreateParser();
+
+        var result = parser.Parse(json, CreateOptions());
+
+        Assert.Null(result.Configuration["route"]?["override_android_vpn"]);
+    }
+
     private SubscriptionParser CreateParser()
     {
         var paths = new AppPaths(root);
