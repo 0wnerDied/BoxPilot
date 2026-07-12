@@ -4,15 +4,31 @@
              xmlns:local="using:BoxPilot.App"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:DataType="vm:TrayViewModel"
+             Name="BoxPilot"
              RequestedThemeVariant="Default">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="{DynamicResource AboutBoxPilot}"
+                      Command="{Binding ShowAboutCommand}" />
+      <NativeMenuItem Header="{DynamicResource MenuSettings}"
+                      Gesture="Meta+OemComma"
+                      Command="{Binding OpenSettingsCommand}" />
+    </NativeMenu>
+  </NativeMenu.Menu>
+
   <TrayIcon.Icons>
     <TrayIcons>
-      <TrayIcon Icon="/Assets/boxpilot.png"
+      <TrayIcon Icon="/Assets/boxpilot-tray.png"
+                MacOSProperties.IsTemplateIcon="True"
+                IsVisible="True"
                 ToolTipText="BoxPilot"
                 Command="{Binding ShowWindowCommand}">
         <TrayIcon.Menu>
           <NativeMenu>
-            <NativeMenuItem Header="BoxPilot" Command="{Binding ShowWindowCommand}" />
+            <NativeMenuItem Header="{DynamicResource OpenBoxPilot}"
+                            Command="{Binding ShowWindowCommand}" />
+            <NativeMenuItem Header="{DynamicResource MenuSettings}"
+                            Command="{Binding OpenSettingsCommand}" />
             <NativeMenuItemSeparator />
             <NativeMenuItem Header="{DynamicResource Start}" Command="{Binding StartCommand}" />
             <NativeMenuItem Header="{DynamicResource Stop}" Command="{Binding StopCommand}" />

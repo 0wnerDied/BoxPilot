@@ -11,6 +11,11 @@ public sealed class LocalizationService
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AppName"] = "BoxPilot",
+            ["AboutBoxPilot"] = "About BoxPilot…",
+            ["AboutTitle"] = "About BoxPilot",
+            ["MenuSettings"] = "Settings…",
+            ["OpenBoxPilot"] = "Open BoxPilot",
+            ["Close"] = "Close",
             ["NavDashboard"] = "Dashboard",
             ["NavProfiles"] = "Profiles",
             ["NavConfiguration"] = "Configuration",
@@ -123,6 +128,11 @@ public sealed class LocalizationService
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AppName"] = "BoxPilot",
+            ["AboutBoxPilot"] = "关于 BoxPilot…",
+            ["AboutTitle"] = "关于 BoxPilot",
+            ["MenuSettings"] = "设置…",
+            ["OpenBoxPilot"] = "打开 BoxPilot",
+            ["Close"] = "关闭",
             ["NavDashboard"] = "仪表盘",
             ["NavProfiles"] = "配置与订阅",
             ["NavConfiguration"] = "配置编辑器",

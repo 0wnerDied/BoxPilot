@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="BoxPilot.App.Views.AboutWindow"
+        Width="380"
+        Height="250"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/boxpilot.png"
+        Title="{DynamicResource AboutTitle}">
+  <Grid Margin="30" RowDefinitions="Auto,18,Auto,*,Auto">
+    <StackPanel Orientation="Horizontal" Spacing="16">
+      <Border Width="52" Height="52" CornerRadius="8"
+              Background="{DynamicResource PrimaryActionBrush}">
+        <TextBlock Text="B" Foreground="{DynamicResource ActionForegroundBrush}"
+                   FontSize="27" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel VerticalAlignment="Center" Spacing="5">
+        <TextBlock Text="{DynamicResource AppName}" FontSize="24"
+                   FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{DynamicResource Version}" Classes="muted" FontSize="13" />
+          <TextBlock x:Name="VersionValue" Classes="muted" FontSize="13" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+
+    <Separator Grid.Row="2" />
+
+    <Button Grid.Row="4" Classes="primary" Content="{DynamicResource Close}"
+            HorizontalAlignment="Right" Click="CloseClick" />
+  </Grid>
+</Window>

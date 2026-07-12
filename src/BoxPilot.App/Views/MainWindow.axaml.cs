@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using BoxPilot.App.Services;
 using BoxPilot.App.ViewModels;
 
 namespace BoxPilot.App.Views;
@@ -21,7 +22,9 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel { Session.Settings.CloseToTray: true })
         {
             eventArgs.Cancel = true;
+            ShowInTaskbar = false;
             Hide();
+            MacOSDockService.SetDockVisible(false);
             return;
         }
 

@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\boxpilot.png" />
+    <AvaloniaResource Include="Assets\boxpilot-tray.png" />
   </ItemGroup>
 
   <ItemGroup>
