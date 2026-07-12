@@ -193,7 +193,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SelectedProfile = profile;
         suppressProfileLoad = false;
         var storedConfiguration = await profileRepository.ReadConfigurationAsync(profile, cancellationToken);
-        storedConfiguration = await NormalizeSubscriptionJsonAsync(
+        storedConfiguration = await NormalizeSubscriptionConfigurationAsync(
             profile,
             storedConfiguration,
             cancellationToken);
@@ -599,20 +599,33 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         IsConfigurationDirty = isDirty;
     }
 
-    private async Task<string> NormalizeSubscriptionJsonAsync(
+    private async Task<string> NormalizeSubscriptionConfigurationAsync(
         Profile profile,
         string configuration,
         CancellationToken cancellationToken)
     {
-        if (profile.Source != ProfileSource.Subscription
-            || !configuration.Contains("\\u", StringComparison.OrdinalIgnoreCase))
-        {
+        if (profile.Source != ProfileSource.Subscription)
             return configuration;
+
+        var shouldPrepare = !string.Equals(
+            profile.SubscriptionFormat,
+            nameof(SubscriptionFormat.SingBoxJson),
+            StringComparison.Ordinal);
+        var shouldFormat = configuration.Contains("\\u", StringComparison.OrdinalIgnoreCase);
+        if (!shouldPrepare && !shouldFormat)
+            return configuration;
+
+        var parsed = configService.Parse(configuration);
+        if (shouldPrepare)
+        {
+            var cacheId = profile.Id.ToString("N");
+            if (Uri.TryCreate(profile.SubscriptionUrl, UriKind.Absolute, out var subscriptionUrl))
+                cacheId = ProfileImportService.CreateCacheId(subscriptionUrl);
+            parsed = configService.PrepareManagedSubscription(parsed, cacheId);
         }
 
-        // Older builds escaped every non-ASCII character in generated profiles.
-        // Preserve manual formatting while migrating app-owned subscription JSON.
-        var normalized = configService.FormatJson(configuration);
+        // Subscription profiles are app-owned; manual profile formatting remains untouched.
+        var normalized = configService.Serialize(parsed);
         if (!string.Equals(normalized, configuration, StringComparison.Ordinal))
         {
             await profileRepository.WriteConfigurationAsync(

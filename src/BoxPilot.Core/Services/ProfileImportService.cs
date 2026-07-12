@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Subscriptions;
 
@@ -25,7 +27,7 @@ public sealed class ProfileImportService(
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         var parsed = subscriptionParser.Parse(fetched.Content, CreateBuildOptions(settings));
-        var configuration = configService.Serialize(parsed.Configuration);
+        var configuration = SerializeSubscription(parsed, subscriptionUrl);
         var validation = await configService.ValidateAsync(configuration, cancellationToken)
             .ConfigureAwait(false);
         if (!validation.IsSuccess)
@@ -96,7 +98,7 @@ public sealed class ProfileImportService(
         }
 
         var parsed = subscriptionParser.Parse(fetched.Content, CreateBuildOptions(settings));
-        var configuration = configService.Serialize(parsed.Configuration);
+        var configuration = SerializeSubscription(parsed, subscriptionUrl);
         var validation = await configService.ValidateAsync(configuration, cancellationToken)
             .ConfigureAwait(false);
         if (!validation.IsSuccess)
@@ -162,5 +164,22 @@ public sealed class ProfileImportService(
             EnableSystemProxy = settings.EnableSystemProxy,
             EnableTun = settings.EnableTun,
         };
+    }
+
+    public static string CreateCacheId(Uri subscriptionUrl)
+    {
+        ArgumentNullException.ThrowIfNull(subscriptionUrl);
+        var digest = SHA256.HashData(Utf8Text.Strict.GetBytes(subscriptionUrl.AbsoluteUri));
+        return "subscription-" + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
+    }
+
+    private string SerializeSubscription(SubscriptionImportResult parsed, Uri subscriptionUrl)
+    {
+        var configuration = parsed.Format == SubscriptionFormat.SingBoxJson
+            ? parsed.Configuration
+            : configService.PrepareManagedSubscription(
+                parsed.Configuration,
+                CreateCacheId(subscriptionUrl));
+        return configService.Serialize(configuration);
     }
 }

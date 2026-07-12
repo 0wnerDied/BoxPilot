@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Services;
@@ -49,7 +50,12 @@ public sealed class ClashApiClient : IDisposable
             return [];
 
         return proxies
-            .Where(static pair => pair.Value is JsonObject value && value["all"] is JsonArray)
+            .Where(static pair => pair.Value is JsonObject value
+                                  && value["all"] is JsonArray
+                                  && string.Equals(
+                                      value["type"]?.ToString(),
+                                      "Selector",
+                                      StringComparison.OrdinalIgnoreCase))
             .Select(pair =>
             {
                 var value = pair.Value!.AsObject();
@@ -57,11 +63,11 @@ public sealed class ClashApiClient : IDisposable
                     pair.Key,
                     value["now"]?.ToString() ?? string.Empty,
                     value["all"]!.AsArray()
-                        .Select(static item => item?.ToString() ?? string.Empty)
-                        .Where(static item => item.Length > 0)
+                        .Select(item => CreateProxyNode(item?.ToString(), proxies))
+                        .Where(static item => item is not null)
+                        .Cast<ProxyNode>()
                         .ToArray());
             })
-            .OrderBy(static item => item.Group, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -77,7 +83,7 @@ public sealed class ClashApiClient : IDisposable
             HttpMethod.Put,
             $"proxies/{Uri.EscapeDataString(group)}");
         request.Content = new StringContent(
-            new JsonObject { ["name"] = proxy }.ToJsonString(),
+            new JsonObject { ["name"] = proxy }.ToJsonString(JsonDefaults.SerializerOptions),
             Encoding.UTF8,
             "application/json");
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -165,5 +171,32 @@ public sealed class ClashApiClient : IDisposable
         await using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         return await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false)
             as JsonObject;
+    }
+
+    private static ProxyNode? CreateProxyNode(string? name, JsonObject proxies)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var value = proxies[name] as JsonObject;
+        return new ProxyNode(
+            name,
+            value?["type"]?.ToString() ?? "Unknown",
+            ReadLatestDelay(value),
+            value?["udp"]?.GetValue<bool>() ?? false,
+            value?["all"] is JsonArray);
+    }
+
+    private static int? ReadLatestDelay(JsonObject? proxy)
+    {
+        if (proxy?["history"] is not JsonArray history
+            || history.LastOrDefault() is not JsonObject latest
+            || latest["delay"] is not JsonValue delay
+            || !delay.TryGetValue<int>(out var value))
+        {
+            return null;
+        }
+
+        return value;
     }
 }

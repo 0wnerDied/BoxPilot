@@ -44,7 +44,17 @@ public sealed record SubscriptionImportResult(
     int NodeCount,
     IReadOnlyList<string> Warnings);
 
-public sealed record ProxyChoice(string Group, string Selected, IReadOnlyList<string> Options);
+public sealed record ProxyNode(
+    string Name,
+    string Type,
+    int? Delay,
+    bool SupportsUdp,
+    bool IsGroup);
+
+public sealed record ProxyChoice(
+    string Group,
+    string Selected,
+    IReadOnlyList<ProxyNode> Options);
 
 public sealed record TrafficSnapshot(long UploadBytesPerSecond, long DownloadBytesPerSecond);
 

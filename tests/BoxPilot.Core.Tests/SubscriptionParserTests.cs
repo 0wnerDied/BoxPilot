@@ -46,6 +46,14 @@ public sealed class SubscriptionParserTests : IDisposable
         Assert.Contains(
             result.Configuration["outbounds"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>(),
             outbound => outbound["type"]?.ToString() == "vless");
+        var automatic = result.Configuration["outbounds"]!.AsArray()
+            .OfType<System.Text.Json.Nodes.JsonObject>()
+            .Single(outbound => outbound["type"]?.ToString() == "urltest");
+        var selector = result.Configuration["outbounds"]!.AsArray()
+            .OfType<System.Text.Json.Nodes.JsonObject>()
+            .Single(outbound => outbound["tag"]?.ToString() == "Select");
+        Assert.Equal(automatic["tag"]?.ToString(), selector["default"]?.ToString());
+        Assert.Equal(automatic["tag"]?.ToString(), selector["outbounds"]?[0]?.ToString());
         Assert.Contains("domain_suffix", result.Configuration.ToJsonString());
         Assert.Equal("Select", result.Configuration["route"]?["final"]?.ToString());
     }

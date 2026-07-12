@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
+using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.Core.Services;
 
@@ -41,6 +42,20 @@ public sealed class SingBoxConfigService(
     public string FormatJson(string configuration)
     {
         return Serialize(Parse(configuration));
+    }
+
+    public JsonObject PrepareManagedSubscription(JsonObject configuration, string cacheId)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cacheId);
+
+        var prepared = configuration.DeepClone().AsObject();
+        ManagedSubscriptionDefaults.Apply(prepared);
+        var experimental = EnsureObject(prepared, "experimental");
+        var cache = EnsureObject(experimental, "cache_file");
+        cache["enabled"] = true;
+        cache["cache_id"] = cacheId;
+        return prepared;
     }
 
     public async Task<CommandResult> ValidateAsync(
