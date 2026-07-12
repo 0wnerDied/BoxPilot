@@ -297,6 +297,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
             if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var subscriptionUrl))
                 throw new ArgumentException(localization["InvalidSubscriptionUrl"], nameof(url));
+            var restart = IsCoreRunning;
 
             outcome = await profileImporter.ImportSubscriptionAsync(
                 string.IsNullOrWhiteSpace(name) ? localization["Subscription"] : name.Trim(),
@@ -306,6 +307,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await ReloadProfilesAsync(cancellationToken);
             var imported = Profiles.First(profile => profile.Id == outcome.Profile.Id);
             await SelectProfileAsync(imported, cancellationToken);
+            if (restart)
+                await RestartCoreForProfileAsync(imported, cancellationToken);
             StatusMessage = outcome.Warnings.Count == 0
                 ? $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]}"
                 : $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]} · "
@@ -333,13 +336,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await SelectProfileAsync(updated, cancellationToken);
 
             if (restart && !outcome.NotModified)
-            {
-                StopTrafficMonitor();
-                await singBox.RestartAsync(
-                    profileRepository.GetConfigurationPath(updated),
-                    cancellationToken);
-                StartTrafficMonitor();
-            }
+                await RestartCoreForProfileAsync(updated, cancellationToken);
             StatusMessage = outcome.NotModified
                 ? $"✓ {localization["SubscriptionCurrent"]}"
                 : $"✓ {updated.NodeCount} {localization["Nodes"]}";
@@ -632,7 +629,14 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var cacheId = profile.Id.ToString("N");
             if (Uri.TryCreate(profile.SubscriptionUrl, UriKind.Absolute, out var subscriptionUrl))
                 cacheId = ProfileImportService.CreateCacheId(subscriptionUrl);
-            parsed = configService.PrepareManagedSubscription(parsed, cacheId);
+            var preservePolicyGroups = string.Equals(
+                profile.SubscriptionFormat,
+                nameof(SubscriptionFormat.ClashYaml),
+                StringComparison.Ordinal);
+            parsed = configService.PrepareManagedSubscription(
+                parsed,
+                cacheId,
+                preservePolicyGroups);
         }
         parsed = configService.ApplyRuntimeOptions(parsed, Settings);
 
@@ -656,6 +660,17 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await operation();
             return null;
         }, static () => null);
+    }
+
+    private async Task RestartCoreForProfileAsync(
+        Profile profile,
+        CancellationToken cancellationToken)
+    {
+        StopTrafficMonitor();
+        await singBox.RestartAsync(
+            profileRepository.GetConfigurationPath(profile),
+            cancellationToken);
+        StartTrafficMonitor();
     }
 
     private async Task<T?> RunBusyWithResultAsync<T>(Func<Task<T>> operation, Func<T?> fallback)
