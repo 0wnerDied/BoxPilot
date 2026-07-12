@@ -7,7 +7,9 @@ namespace BoxPilot.Core.Infrastructure;
 internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
 {
     private static readonly TimeSpan InitialConnectionTimeout = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan InstalledConnectionTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan InstalledConnectionTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan ReaderShutdownTimeout = TimeSpan.FromSeconds(1);
     private readonly CoreServiceLayout layout = CoreServiceLayout.Create(
         paths,
         CoreServiceIdentity.Create(paths));
@@ -81,27 +83,18 @@ internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
             return;
         disposed = true;
 
-        if (IsConnected)
-        {
-            try
-            {
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await SendRequestAsync("stop", null, timeout.Token).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-        }
-
+        // Closing the authenticated lease makes the service stop TUN even if IPC is unresponsive.
         lifetime.Cancel();
         var activeConnection = Interlocked.Exchange(ref connection, null);
         if (activeConnection is not null)
             await activeConnection.DisposeAsync().ConfigureAwait(false);
+        ClearConnectionState();
+        FailPendingRequests();
         if (readerTask is not null)
         {
             try
             {
-                await readerTask.ConfigureAwait(false);
+                await readerTask.WaitAsync(ReaderShutdownTimeout).ConfigureAwait(false);
             }
             catch
             {
@@ -117,44 +110,71 @@ internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
         string? configuration,
         CancellationToken cancellationToken)
     {
-        var stream = connection
-            ?? throw new CoreServiceException(
-                CoreServiceFailure.Unavailable,
-                CoreServiceErrorCodes.Unavailable);
-        var requestId = Interlocked.Increment(ref nextRequestId);
-        var completion = new TaskCompletionSource<CoreServiceMessage>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!pending.TryAdd(requestId, completion))
-            throw new InvalidOperationException("The core service request identifier collided.");
+        await RunWithTimeoutAsync(async requestCancellation =>
+        {
+            var stream = connection
+                ?? throw new CoreServiceException(
+                    CoreServiceFailure.Unavailable,
+                    CoreServiceErrorCodes.Unavailable);
+            var requestId = Interlocked.Increment(ref nextRequestId);
+            var completion = new TaskCompletionSource<CoreServiceMessage>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!pending.TryAdd(requestId, completion))
+                throw new InvalidOperationException("The core service request identifier collided.");
 
+            try
+            {
+                await CoreServiceProtocol.WriteAsync(
+                        stream,
+                        new CoreServiceMessage
+                        {
+                            Type = "request",
+                            RequestId = requestId,
+                            Command = command,
+                            Configuration = configuration,
+                        },
+                        writeGate,
+                        requestCancellation)
+                    .ConfigureAwait(false);
+                var response = await completion.Task.WaitAsync(requestCancellation).ConfigureAwait(false);
+                if (!response.Success)
+                    throw new InvalidOperationException(response.Error ?? "The core service request failed.");
+            }
+            catch (IOException exception)
+            {
+                throw new CoreServiceException(
+                    CoreServiceFailure.Unavailable,
+                    CoreServiceErrorCodes.Disconnected,
+                    exception);
+            }
+            finally
+            {
+                pending.TryRemove(requestId, out _);
+            }
+        }, RequestTimeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task RunWithTimeoutAsync(
+        Func<CancellationToken, Task> operation,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        if (timeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
         try
         {
-            await CoreServiceProtocol.WriteAsync(
-                    stream,
-                    new CoreServiceMessage
-                    {
-                        Type = "request",
-                        RequestId = requestId,
-                        Command = command,
-                        Configuration = configuration,
-                    },
-                    writeGate,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            var response = await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (!response.Success)
-                throw new InvalidOperationException(response.Error ?? "The core service request failed.");
+            await operation(deadline.Token).ConfigureAwait(false);
         }
-        catch (IOException exception)
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new CoreServiceException(
                 CoreServiceFailure.Unavailable,
-                CoreServiceErrorCodes.Disconnected,
+                CoreServiceErrorCodes.Unavailable,
                 exception);
-        }
-        finally
-        {
-            pending.TryRemove(requestId, out _);
         }
     }
 
@@ -382,15 +402,16 @@ internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
         }
         finally
         {
-            if (ReferenceEquals(connection, stream))
-                connection = null;
-            connectedApplicationFingerprint = null;
-            connectedCoreFingerprint = null;
-            var failure = new IOException("The core service disconnected.");
-            foreach (var completion in pending.Values)
-                completion.TrySetException(failure);
-            if (!disposed && !expectedDisconnect && !cancellationToken.IsCancellationRequested)
-                Disconnected?.Invoke(CoreServiceErrorCodes.Disconnected);
+            var wasCurrent = ReferenceEquals(
+                Interlocked.CompareExchange(ref connection, null, stream),
+                stream);
+            if (wasCurrent)
+            {
+                ClearConnectionState();
+                FailPendingRequests();
+                if (!disposed && !expectedDisconnect && !cancellationToken.IsCancellationRequested)
+                    Disconnected?.Invoke(CoreServiceErrorCodes.Disconnected);
+            }
         }
     }
 
@@ -402,11 +423,13 @@ internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
             var activeConnection = Interlocked.Exchange(ref connection, null);
             if (activeConnection is not null)
                 await activeConnection.DisposeAsync().ConfigureAwait(false);
+            ClearConnectionState();
+            FailPendingRequests();
             if (readerTask is not null)
             {
                 try
                 {
-                    await readerTask.ConfigureAwait(false);
+                    await readerTask.WaitAsync(ReaderShutdownTimeout).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -418,6 +441,19 @@ internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
         {
             expectedDisconnect = false;
         }
+    }
+
+    private void ClearConnectionState()
+    {
+        connectedApplicationFingerprint = null;
+        connectedCoreFingerprint = null;
+    }
+
+    private void FailPendingRequests()
+    {
+        var failure = new IOException("The core service disconnected.");
+        foreach (var completion in pending.Values)
+            completion.TrySetException(failure);
     }
 
     private void EnsureCacheDatabaseExists()

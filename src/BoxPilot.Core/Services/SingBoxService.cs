@@ -8,7 +8,9 @@ namespace BoxPilot.Core.Services;
 
 public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 {
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
+    private readonly CancellationTokenSource lifetime = new();
     private Process? process;
     private CancellationTokenSource? logCancellation;
     private CoreServiceClient? coreService;
@@ -142,18 +144,22 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            lifetime.Token);
+        var operationCancellation = operation.Token;
 
-        await lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await lifecycleGate.WaitAsync(operationCancellation).ConfigureAwait(false);
         try
         {
             if (process is { HasExited: false } || serviceCoreActive)
                 return;
             if (string.IsNullOrWhiteSpace(ExecutablePath))
-                await InitializeAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                await InitializeAsync(cancellationToken: operationCancellation).ConfigureAwait(false);
 
             SetState(CoreState.Starting);
             paths.EnsureCreated();
-            if (await TunConfiguration.ContainsTunInboundAsync(configurationPath, cancellationToken)
+            if (await TunConfiguration.ContainsTunInboundAsync(configurationPath, operationCancellation)
                     .ConfigureAwait(false)
                 && !ProcessPrivileges.IsElevated())
             {
@@ -164,7 +170,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                     await client.StartAsync(
                             ExecutablePath,
                             Path.GetFullPath(configurationPath),
-                            cancellationToken)
+                            operationCancellation)
                         .ConfigureAwait(false);
                     if (state != CoreState.Running)
                         SetState(CoreState.Running, serviceProcessId);
@@ -206,6 +212,13 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
             SetState(CoreState.Running, newProcess.Id);
             WriteLog(CoreLogStream.BoxPilot, $"Started sing-box process {newProcess.Id}.");
+        }
+        catch (OperationCanceledException) when (
+            lifetime.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            CleanupProcess();
+            SetState(CoreState.Stopped);
+            throw;
         }
         catch (Exception exception)
         {
@@ -349,13 +362,18 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        lifetime.Cancel();
         try
         {
-            await StopAsync().ConfigureAwait(false);
+            using var timeout = new CancellationTokenSource(ShutdownTimeout);
+            await StopAsync(timeout.Token).ConfigureAwait(false);
         }
         catch
         {
-            CleanupProcess();
+            ForceStopProcess();
+            serviceCoreActive = false;
+            serviceProcessId = null;
+            SetState(CoreState.Stopped);
         }
 
         if (coreService is not null)
@@ -363,6 +381,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             await coreService.DisposeAsync().ConfigureAwait(false);
             coreService = null;
         }
+        lifetime.Dispose();
         lifecycleGate.Dispose();
     }
 
@@ -445,6 +464,22 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             process.Dispose();
             process = null;
         }
+    }
+
+    private void ForceStopProcess()
+    {
+        if (process is not null)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+            }
+        }
+        CleanupProcess();
     }
 
     private CoreServiceClient GetCoreService()

@@ -332,7 +332,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var updated = Profiles.First(item => item.Id == profile.Id);
             await SelectProfileAsync(updated, cancellationToken);
 
-            if (restart)
+            if (restart && !outcome.NotModified)
             {
                 StopTrafficMonitor();
                 await singBox.RestartAsync(
