@@ -12,6 +12,27 @@ public sealed class ProfileImportService(
     SingBoxConfigService configService,
     ProfileRepository profileRepository)
 {
+    private static readonly HashSet<string> ExplicitFormatSegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "base64",
+        "clash",
+        "clash-meta",
+        "clashmeta",
+        "mihomo",
+        "sing-box",
+        "singbox",
+        "v2ray",
+    };
+
+    private static readonly HashSet<string> ExplicitFormatExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".conf",
+        ".json",
+        ".txt",
+        ".yaml",
+        ".yml",
+    };
+
     public async Task<ProfileImportOutcome> ImportSubscriptionAsync(
         string name,
         Uri subscriptionUrl,
@@ -189,26 +210,45 @@ public sealed class ProfileImportService(
         string? previousFormat = null,
         CancellationToken cancellationToken = default)
     {
-        var clashUrl = CreateClashVariantUri(subscriptionUrl);
-        if (clashUrl != subscriptionUrl)
+        if (!HasExplicitFormat(subscriptionUrl))
         {
             var refreshRepresentation = string.Equals(
                 previousFormat,
                 nameof(SubscriptionFormat.SingBoxJson),
                 StringComparison.Ordinal);
-            try
+            foreach (var clashUrl in CreateClashVariantUris(subscriptionUrl))
             {
-                return await FetchAndParseAsync(
-                        clashUrl,
-                        settings,
-                        refreshRepresentation ? null : etag,
-                        refreshRepresentation ? null : lastModified,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception exception) when (IsAlternativeRepresentationFailure(exception))
-            {
-                // Providers are not required to understand Clash format hints.
+                try
+                {
+                    var candidate = await FetchAndParseAsync(
+                            clashUrl,
+                            settings,
+                            refreshRepresentation ? null : etag,
+                            refreshRepresentation ? null : lastModified,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    if (candidate.Fetch.NotModified
+                        && string.Equals(
+                            previousFormat,
+                            nameof(SubscriptionFormat.ClashYaml),
+                            StringComparison.Ordinal))
+                    {
+                        return candidate;
+                    }
+
+                    if (candidate.Parsed is
+                        {
+                            Format: SubscriptionFormat.ClashYaml,
+                            SourcePolicyGroupCount: > 0,
+                        })
+                    {
+                        return candidate;
+                    }
+                }
+                catch (Exception exception) when (IsAlternativeRepresentationFailure(exception))
+                {
+                    // Providers are not required to expose every Clash representation.
+                }
             }
         }
 
@@ -243,22 +283,38 @@ public sealed class ProfileImportService(
         return (fetched, parsed);
     }
 
-    private static Uri CreateClashVariantUri(Uri subscriptionUrl)
+    private static IEnumerable<Uri> CreateClashVariantUris(Uri subscriptionUrl)
     {
-        var builder = new UriBuilder(subscriptionUrl);
-        var query = builder.Query.TrimStart('?');
-        var hasExplicitFormat = query
+        var pathBuilder = new UriBuilder(subscriptionUrl)
+        {
+            Path = subscriptionUrl.AbsolutePath.TrimEnd('/') + "/clash",
+        };
+        yield return pathBuilder.Uri;
+
+        var queryBuilder = new UriBuilder(subscriptionUrl);
+        var query = queryBuilder.Query.TrimStart('?');
+        queryBuilder.Query = string.IsNullOrEmpty(query)
+            ? "target=clash&format=clash"
+            : $"{query}&target=clash&format=clash";
+        yield return queryBuilder.Uri;
+    }
+
+    private static bool HasExplicitFormat(Uri subscriptionUrl)
+    {
+        var hasFormatQuery = subscriptionUrl.Query
+            .TrimStart('?')
             .Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(static field => field.Split('=', 2)[0])
             .Any(static key => key.Equals("target", StringComparison.OrdinalIgnoreCase)
                                || key.Equals("format", StringComparison.OrdinalIgnoreCase));
-        if (hasExplicitFormat)
-            return subscriptionUrl;
+        if (hasFormatQuery)
+            return true;
 
-        builder.Query = string.IsNullOrEmpty(query)
-            ? "target=clash&format=clash"
-            : $"{query}&target=clash&format=clash";
-        return builder.Uri;
+        var path = subscriptionUrl.AbsolutePath.TrimEnd('/');
+        var separator = path.LastIndexOf('/');
+        var segment = Uri.UnescapeDataString(path[(separator + 1)..]);
+        return ExplicitFormatSegments.Contains(segment)
+               || ExplicitFormatExtensions.Contains(Path.GetExtension(segment));
     }
 
     private static bool IsAlternativeRepresentationFailure(Exception exception)
