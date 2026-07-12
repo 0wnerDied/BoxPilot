@@ -13,10 +13,22 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     private readonly CancellationTokenSource lifetime = new();
     private Process? process;
     private CancellationTokenSource? logCancellation;
-    private CoreServiceClient? coreService;
+    private readonly Func<ICoreServiceClient> coreServiceFactory = () => new CoreServiceClient(paths);
+    private readonly Func<bool> isElevated = ProcessPrivileges.IsElevated;
+    private ICoreServiceClient? coreService;
     private bool serviceCoreActive;
     private int? serviceProcessId;
     private CoreState state = CoreState.Stopped;
+
+    internal SingBoxService(
+        AppPaths paths,
+        Func<ICoreServiceClient> coreServiceFactory,
+        Func<bool> isElevated)
+        : this(paths)
+    {
+        this.coreServiceFactory = coreServiceFactory;
+        this.isElevated = isElevated;
+    }
 
     public event Action<CoreLogEntry>? LogReceived;
 
@@ -159,9 +171,12 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
             SetState(CoreState.Starting);
             paths.EnsureCreated();
-            if (await TunConfiguration.ContainsTunInboundAsync(configurationPath, operationCancellation)
-                    .ConfigureAwait(false)
-                && !ProcessPrivileges.IsElevated())
+            var hasTunInbound = await TunConfiguration.ContainsTunInboundAsync(
+                    configurationPath,
+                    operationCancellation)
+                .ConfigureAwait(false);
+            var requiresService = hasTunInbound && !isElevated();
+            if (requiresService)
             {
                 var client = GetCoreService();
                 serviceCoreActive = true;
@@ -183,6 +198,8 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                     throw;
                 }
             }
+
+            await ReleaseCoreServiceAsync().ConfigureAwait(false);
 
             var startInfo = CreateStartInfo(["run", "-c", Path.GetFullPath(configurationPath)]);
             startInfo.WorkingDirectory = paths.RuntimeDirectory;
@@ -311,11 +328,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     public async Task UninstallCoreServiceAsync(CancellationToken cancellationToken = default)
     {
         await StopAsync(cancellationToken).ConfigureAwait(false);
-        if (coreService is not null)
-        {
-            await coreService.DisposeAsync().ConfigureAwait(false);
-            coreService = null;
-        }
+        await ReleaseCoreServiceAsync().ConfigureAwait(false);
         await CoreServiceInstaller.UninstallElevatedAsync(paths, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -376,11 +389,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             SetState(CoreState.Stopped);
         }
 
-        if (coreService is not null)
-        {
-            await coreService.DisposeAsync().ConfigureAwait(false);
-            coreService = null;
-        }
+        await ReleaseCoreServiceAsync().ConfigureAwait(false);
         lifetime.Dispose();
         lifecycleGate.Dispose();
     }
@@ -482,20 +491,41 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         CleanupProcess();
     }
 
-    private CoreServiceClient GetCoreService()
+    private ICoreServiceClient GetCoreService()
     {
         if (coreService is not null)
             return coreService;
 
-        coreService = new CoreServiceClient(paths);
-        coreService.LogReceived += entry => LogReceived?.Invoke(entry);
+        coreService = coreServiceFactory();
+        coreService.LogReceived += OnCoreServiceLogReceived;
         coreService.StateChanged += OnServiceStateChanged;
         coreService.Disconnected += OnCoreServiceDisconnected;
         return coreService;
     }
 
+    private async ValueTask ReleaseCoreServiceAsync()
+    {
+        var client = coreService;
+        if (client is null)
+            return;
+
+        coreService = null;
+        client.LogReceived -= OnCoreServiceLogReceived;
+        client.StateChanged -= OnServiceStateChanged;
+        client.Disconnected -= OnCoreServiceDisconnected;
+        await client.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private void OnCoreServiceLogReceived(CoreLogEntry entry)
+    {
+        LogReceived?.Invoke(entry);
+    }
+
     private void OnServiceStateChanged(CoreStateChangedEventArgs eventArgs)
     {
+        if (!serviceCoreActive)
+            return;
+
         serviceProcessId = eventArgs.ProcessId;
         if (eventArgs.Current is CoreState.Stopped or CoreState.Faulted)
         {
@@ -507,6 +537,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
     private void OnCoreServiceDisconnected(string error)
     {
+        if (!serviceCoreActive)
+            return;
+
         serviceCoreActive = false;
         serviceProcessId = null;
         if (state != CoreState.Stopped)

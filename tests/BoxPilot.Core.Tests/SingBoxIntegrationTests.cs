@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
@@ -86,6 +88,60 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
         Assert.True(result.IsSuccess, result.CombinedOutput);
     }
 
+    [Fact]
+    public async Task SwitchingFromTunServiceToLocalCoreDropsServiceLease()
+    {
+        var paths = new AppPaths(root);
+        var serviceClient = new FakeCoreServiceClient();
+        core = new SingBoxService(paths, () => serviceClient, static () => false);
+        try
+        {
+            await core.InitializeAsync();
+        }
+        catch (FileNotFoundException)
+        {
+            return;
+        }
+
+        var (mixedPort, apiPort) = ReserveTcpPorts();
+        var configService = new SingBoxConfigService(paths, core);
+        var tunPath = Path.Combine(root, "tun.json");
+        var localPath = Path.Combine(root, "local.json");
+        paths.EnsureCreated();
+        await File.WriteAllTextAsync(
+            tunPath,
+            configService.Serialize(configService.CreateStarterConfiguration(new AppSettings
+            {
+                EnableTun = true,
+                EnableSystemProxy = false,
+                MixedPort = mixedPort,
+                ClashApiPort = apiPort,
+            })));
+        await File.WriteAllTextAsync(
+            localPath,
+            configService.Serialize(configService.CreateStarterConfiguration(new AppSettings
+            {
+                EnableTun = false,
+                EnableSystemProxy = false,
+                MixedPort = mixedPort,
+                ClashApiPort = apiPort,
+            })));
+
+        await core.StartAsync(tunPath);
+        await core.StopAsync();
+        serviceClient.RaiseDisconnected();
+        Assert.Equal(CoreState.Stopped, core.State);
+
+        await core.StartAsync(localPath);
+        await Task.Delay(200);
+        serviceClient.RaiseDisconnected();
+
+        Assert.True(serviceClient.Disposed);
+        Assert.Equal(CoreState.Running, core.State);
+        Assert.NotNull(core.ProcessId);
+        await core.StopAsync();
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()
@@ -94,5 +150,63 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
             await core.DisposeAsync();
         if (Directory.Exists(root))
             Directory.Delete(root, true);
+    }
+
+    private static (int First, int Second) ReserveTcpPorts()
+    {
+        using var first = new TcpListener(IPAddress.Loopback, 0);
+        using var second = new TcpListener(IPAddress.Loopback, 0);
+        first.Start();
+        second.Start();
+        return (((IPEndPoint)first.LocalEndpoint).Port, ((IPEndPoint)second.LocalEndpoint).Port);
+    }
+
+    private sealed class FakeCoreServiceClient : ICoreServiceClient
+    {
+        public event Action<CoreLogEntry>? LogReceived
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<CoreStateChangedEventArgs>? StateChanged;
+
+        public event Action<string>? Disconnected;
+
+        public bool Disposed { get; private set; }
+
+        public Task StartAsync(
+            string executablePath,
+            string configurationPath,
+            CancellationToken cancellationToken)
+        {
+            StateChanged?.Invoke(new CoreStateChangedEventArgs(
+                CoreState.Stopped,
+                CoreState.Running,
+                42,
+                null));
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            StateChanged?.Invoke(new CoreStateChangedEventArgs(
+                CoreState.Running,
+                CoreState.Stopped,
+                null,
+                null));
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public void RaiseDisconnected()
+        {
+            Disconnected?.Invoke(CoreServiceErrorCodes.Disconnected);
+        }
     }
 }

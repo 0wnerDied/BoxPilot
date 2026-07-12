@@ -4,7 +4,23 @@ using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Infrastructure;
 
-internal sealed class CoreServiceClient(AppPaths paths) : IAsyncDisposable
+internal interface ICoreServiceClient : IAsyncDisposable
+{
+    event Action<CoreLogEntry>? LogReceived;
+
+    event Action<CoreStateChangedEventArgs>? StateChanged;
+
+    event Action<string>? Disconnected;
+
+    Task StartAsync(
+        string executablePath,
+        string configurationPath,
+        CancellationToken cancellationToken);
+
+    Task StopAsync(CancellationToken cancellationToken);
+}
+
+internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
 {
     private static readonly TimeSpan InitialConnectionTimeout = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan InstalledConnectionTimeout = TimeSpan.FromSeconds(10);
