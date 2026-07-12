@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:BoxPilot.App.Controls"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.ToolsView"
              x:DataType="vm:ToolsViewModel">
@@ -11,8 +12,16 @@
     <Border Grid.Row="2" Classes="panel">
       <Grid RowDefinitions="Auto,12,Auto" ColumnDefinitions="*">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-          <TextBox Classes="command" Text="{Binding CommandText}"
-                   PlaceholderText="{DynamicResource CommandHint}" />
+          <controls:CodeEditor Classes="command-editor" Language="Console"
+                               Value="{Binding CommandText, Mode=TwoWay}"
+                               Placeholder="{DynamicResource CommandHint}"
+                               ShowLineNumbers="False" WordWrap="False"
+                               HorizontalScrollBarVisibility="Hidden"
+                               VerticalScrollBarVisibility="Hidden">
+            <controls:CodeEditor.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding RunCommand}" />
+            </controls:CodeEditor.KeyBindings>
+          </controls:CodeEditor>
           <Button Grid.Column="1" Classes="primary" Content="{DynamicResource RunCommand}"
                   Command="{Binding RunCommand}" IsEnabled="{Binding !Session.IsBusy}" />
         </Grid>
@@ -43,10 +52,11 @@
           <TextBlock Grid.Column="1" Text="sing-box" Classes="dark-muted" FontSize="12" />
         </Grid>
         <Border Grid.Row="1" Background="#28FFFFFF" />
-        <TextBox Grid.Row="2" Classes="editor" Text="{Binding Output}" IsReadOnly="True"
-                 AcceptsReturn="True" TextWrapping="NoWrap" BorderThickness="0" CornerRadius="0"
-                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+        <controls:CodeEditor Grid.Row="2" Classes="console-output" Language="Console"
+                             Value="{Binding Output}" IsReadOnly="True"
+                             ShowLineNumbers="False" WordWrap="False"
+                             HorizontalScrollBarVisibility="Auto"
+                             VerticalScrollBarVisibility="Auto" />
       </Grid>
     </Border>
   </Grid>

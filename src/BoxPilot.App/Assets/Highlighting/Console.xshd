@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SyntaxDefinition name="BoxPilot Console"
+                  xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Option" foreground="#D7A17D" fontWeight="bold" />
+  <Color name="String" foreground="#A8B89B" />
+  <Color name="Number" foreground="#D5A56F" />
+  <Color name="Address" foreground="#8FA8C8" />
+  <Color name="Success" foreground="#91AF95" />
+  <Color name="Warning" foreground="#D5A56F" fontWeight="bold" />
+  <Color name="Error" foreground="#D77E72" fontWeight="bold" />
+  <Color name="Heading" foreground="#E8E1D6" fontWeight="bold" />
+
+  <RuleSet>
+    <Span color="String" begin="&quot;" end="&quot;" escapeCharacter="\" />
+    <Span color="String" begin="'" end="'" escapeCharacter="\" />
+    <Rule color="Address">\b(?:https?|socks5?)://[^\s]+</Rule>
+    <Rule color="Option">(?&lt;![\w-])--?[A-Za-z][A-Za-z0-9_-]*</Rule>
+    <Rule color="Error">\b(?i:error|failed|failure|fatal|invalid)\b</Rule>
+    <Rule color="Warning">\b(?i:warning|warn|deprecated)\b</Rule>
+    <Rule color="Success">\b(?i:success|successful|completed|valid|running|online)\b</Rule>
+    <Rule color="Number">\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b</Rule>
+    <Rule color="Heading">(?m)^[A-Za-z][A-Za-z ]+:</Rule>
+  </RuleSet>
+</SyntaxDefinition>

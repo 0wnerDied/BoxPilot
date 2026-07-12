@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:BoxPilot.App.Controls"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.ConfigurationView"
              x:DataType="vm:ConfigurationViewModel">
@@ -42,11 +43,11 @@
       </Grid>
     </Border>
 
-    <TextBox Grid.Row="4" Classes="editor" Text="{Binding Session.ConfigurationText}"
-             AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-             PlaceholderText="{DynamicResource JsonPlaceholder}"
-             HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
-             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+    <controls:CodeEditor Grid.Row="4" Language="Json"
+                         Value="{Binding Session.ConfigurationText, Mode=TwoWay}"
+                         ShowLineNumbers="True" WordWrap="False"
+                         Placeholder="{DynamicResource JsonPlaceholder}"
+                         HorizontalScrollBarVisibility="Auto"
+                         VerticalScrollBarVisibility="Auto" />
   </Grid>
 </UserControl>

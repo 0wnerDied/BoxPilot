@@ -29,7 +29,7 @@
         <ListBox Grid.Row="2" x:Name="LogList" Classes="log-list"
                  ItemsSource="{Binding Session.Logs}"
                  Background="Transparent" BorderThickness="0"
-                 FontFamily="SFMono-Regular, Cascadia Code, Consolas, monospace"
+                 FontFamily="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace"
                  FontSize="12">
           <ListBox.ItemTemplate>
             <DataTemplate>

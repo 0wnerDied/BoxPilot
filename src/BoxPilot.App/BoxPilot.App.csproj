@@ -28,10 +28,15 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\boxpilot.png" />
     <AvaloniaResource Include="Assets\boxpilot-tray.png" />
+    <EmbeddedResource Include="Assets\Highlighting\Json.xshd"
+                      LogicalName="BoxPilot.App.Highlighting.Json.xshd" />
+    <EmbeddedResource Include="Assets\Highlighting\Console.xshd"
+                      LogicalName="BoxPilot.App.Highlighting.Console.xshd" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">

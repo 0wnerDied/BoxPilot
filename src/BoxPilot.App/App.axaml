@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="BoxPilot.App.App"
+             xmlns:edit="using:AvaloniaEdit"
              xmlns:local="using:BoxPilot.App"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:DataType="vm:TrayViewModel"
@@ -107,6 +108,7 @@
                                RegionColor="#201D19" ErrorText="#D27A6D" />
       </FluentTheme.Palettes>
     </FluentTheme>
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
 
     <Style Selector="Window">
       <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
@@ -308,50 +310,30 @@
       <Setter Property="Background" Value="{DynamicResource InputBrush}" />
       <Setter Property="Opacity" Value="0.5" />
     </Style>
-    <Style Selector="TextBox.editor">
+    <Style Selector="edit|TextEditor.code-editor">
       <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
-      <Setter Property="CaretBrush" Value="{DynamicResource CodeForegroundBrush}" />
-      <Setter Property="SelectionBrush" Value="{DynamicResource CodeSelectionBrush}" />
-      <Setter Property="SelectionForegroundBrush" Value="{DynamicResource CodeForegroundBrush}" />
-      <Setter Property="PlaceholderForeground" Value="{DynamicResource DarkMutedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="18" />
-      <Setter Property="FontFamily" Value="SFMono-Regular, Cascadia Code, Consolas, monospace" />
+      <Setter Property="FontFamily"
+              Value="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace" />
       <Setter Property="FontSize" Value="14" />
     </Style>
-    <Style Selector="TextBox.editor:pointerover, TextBox.editor:focus">
-      <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
-    </Style>
-    <Style Selector="TextBox.editor:pointerover /template/ Border#PART_BorderElement">
-      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
-    </Style>
-    <Style Selector="TextBox.editor:focus /template/ Border#PART_BorderElement">
-      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+    <Style Selector="edit|TextEditor.code-editor:focus-within">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="TextBox.command">
-      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-      <Setter Property="CaretBrush" Value="{DynamicResource PrimaryTextBrush}" />
-      <Setter Property="FontFamily" Value="SFMono-Regular, Cascadia Code, Consolas, monospace" />
+    <Style Selector="edit|TextEditor.command-editor">
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="MinHeight" Value="42" />
+      <Setter Property="Padding" Value="11,9" />
       <Setter Property="FontSize" Value="15" />
     </Style>
-    <Style Selector="TextBox.command:pointerover, TextBox.command:focus">
-      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-    </Style>
-    <Style Selector="TextBox.command:pointerover /template/ Border#PART_BorderElement">
-      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-    </Style>
-    <Style Selector="TextBox.command:focus /template/ Border#PART_BorderElement">
-      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
+    <Style Selector="edit|TextEditor.console-output">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="16" />
     </Style>
     <Style Selector="ListBoxItem">
       <Setter Property="CornerRadius" Value="5" />

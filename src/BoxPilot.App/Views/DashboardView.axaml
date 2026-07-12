@@ -129,7 +129,7 @@
           <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
           <ListBox Grid.Row="2" ItemsSource="{Binding Session.Logs}"
                    Background="Transparent" BorderThickness="0"
-                   FontFamily="SFMono-Regular, Cascadia Code, Consolas, monospace"
+                   FontFamily="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace"
                    FontSize="12" Margin="8" IsVisible="{Binding Session.HasLogs}">
             <ListBox.ItemTemplate>
               <DataTemplate>
