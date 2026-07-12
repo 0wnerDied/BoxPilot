@@ -11,7 +11,8 @@
     <Border Grid.Row="2" Classes="panel">
       <Grid RowDefinitions="Auto,12,Auto" ColumnDefinitions="*">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-          <TextBox Text="{Binding CommandText}" PlaceholderText="{DynamicResource CommandHint}" />
+          <TextBox Classes="command" Text="{Binding CommandText}"
+                   PlaceholderText="{DynamicResource CommandHint}" />
           <Button Grid.Column="1" Classes="primary" Content="{DynamicResource RunCommand}"
                   Command="{Binding RunCommand}" IsEnabled="{Binding !Session.IsBusy}" />
         </Grid>

@@ -74,6 +74,7 @@
       <SolidColorBrush x:Key="AccentBrush">#9B6243</SolidColorBrush>
       <SolidColorBrush x:Key="AccentHoverBrush">#875238</SolidColorBrush>
       <SolidColorBrush x:Key="AccentSoftBrush">#229B6243</SolidColorBrush>
+      <SolidColorBrush x:Key="CodeSelectionBrush">#6F4936</SolidColorBrush>
       <SolidColorBrush x:Key="SuccessBrush">#6F8872</SolidColorBrush>
       <SolidColorBrush x:Key="DangerBrush">#A5574B</SolidColorBrush>
       <SolidColorBrush x:Key="DarkTextBrush">#F3EDE3</SolidColorBrush>
@@ -255,12 +256,64 @@
     <Style Selector="TextBox.editor">
       <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource CodeSelectionBrush}" />
+      <Setter Property="SelectionForegroundBrush" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource DarkMutedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="18" />
       <Setter Property="FontFamily" Value="SFMono-Regular, Cascadia Code, Consolas, monospace" />
       <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="TextBox.editor:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.editor:focus">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBox.editor /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.editor:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DarkModuleBorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.editor:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBox.command">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource PrimaryTextBrush}" />
+      <Setter Property="FontFamily" Value="SFMono-Regular, Cascadia Code, Consolas, monospace" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="TextBox.command:pointerover">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
+    <Style Selector="TextBox.command:focus">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBox.command:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.command:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="ListBoxItem">
       <Setter Property="CornerRadius" Value="5" />
