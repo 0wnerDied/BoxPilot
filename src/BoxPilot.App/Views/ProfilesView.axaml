@@ -11,15 +11,17 @@
     <Border Grid.Row="2" Classes="panel" Padding="0">
       <Grid ColumnDefinitions="330,1,*">
         <ScrollViewer Grid.Column="0" Padding="22"
-                      HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Spacing="12">
+                      HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch">
+          <StackPanel Spacing="12" HorizontalAlignment="Stretch">
             <TextBlock Text="{DynamicResource ImportSection}" Classes="section-title" />
             <TextBlock Text="{DynamicResource SubscriptionName}" Classes="muted" FontSize="13" />
             <TextBox Text="{Binding ProfileName}"
                      PlaceholderText="{DynamicResource SubscriptionNamePlaceholder}" />
             <TextBlock Text="{DynamicResource SubscriptionUrl}" Classes="muted"
                        FontSize="13" Margin="0,4,0,0" />
-            <TextBox Text="{Binding SubscriptionUrl}" PlaceholderText="https://…" />
+            <TextBox Text="{Binding SubscriptionUrl}" PlaceholderText="https://…"
+                     MaxWidth="286" HorizontalAlignment="Stretch" />
             <Button Classes="primary" Content="{DynamicResource Import}"
                     Command="{Binding ImportCommand}" IsEnabled="{Binding Session.CanModifyProfiles}"
                     HorizontalAlignment="Stretch" />
