@@ -78,6 +78,32 @@ public sealed class SubscriptionParserTests : IDisposable
     }
 
     [Fact]
+    public void ParsePlainVlessUriListPreservesRealityOptions()
+    {
+        const string subscription =
+            "vless://11111111-1111-1111-1111-111111111111@example.com:443"
+            + "?type=tcp&encryption=none&flow=xtls-rprx-vision&security=reality"
+            + "&sni=www.example.com&fp=chrome&pbk=public-key&sid=01234567"
+            + "#IPv6%20%E6%97%A5%E6%9C%AC";
+        var parser = CreateParser();
+
+        var result = parser.Parse(subscription, CreateOptions());
+
+        Assert.Equal(SubscriptionFormat.UriList, result.Format);
+        Assert.Equal(1, result.NodeCount);
+        Assert.Empty(result.Warnings);
+        var outbound = result.Configuration["outbounds"]!.AsArray()
+            .OfType<System.Text.Json.Nodes.JsonObject>()
+            .Single(item => item["type"]?.ToString() == "vless");
+        Assert.Equal("IPv6 日本", outbound["tag"]?.ToString());
+        Assert.Equal("xtls-rprx-vision", outbound["flow"]?.ToString());
+        Assert.Equal("www.example.com", outbound["tls"]?["server_name"]?.ToString());
+        Assert.Equal("chrome", outbound["tls"]?["utls"]?["fingerprint"]?.ToString());
+        Assert.Equal("public-key", outbound["tls"]?["reality"]?["public_key"]?.ToString());
+        Assert.Equal("01234567", outbound["tls"]?["reality"]?["short_id"]?.ToString());
+    }
+
+    [Fact]
     public void ParseClashYamlConvertsGeoRulesToModernRuleSets()
     {
         const string yaml = """
@@ -154,6 +180,52 @@ public sealed class SubscriptionParserTests : IDisposable
         Assert.Equal(SubscriptionFormat.SingBoxJson, result.Format);
         Assert.NotNull(result.Configuration["services"]);
         Assert.NotNull(result.Configuration["experimental"]?["clash_api"]);
+    }
+
+    [Fact]
+    public void ParseSingBoxJsonPreservesNativeGroupsAndRuleSets()
+    {
+        const string json = """
+                            {
+                              "outbounds": [
+                                {
+                                  "type": "vless",
+                                  "tag": "Edge",
+                                  "server": "example.com",
+                                  "server_port": 443,
+                                  "uuid": "11111111-1111-1111-1111-111111111111"
+                                },
+                                { "type": "urltest", "tag": "Auto", "outbounds": ["Edge"] },
+                                { "type": "selector", "tag": "Proxy", "outbounds": ["Auto", "Edge"] },
+                                { "type": "direct", "tag": "direct" }
+                              ],
+                              "route": {
+                                "rules": [
+                                  { "rule_set": ["geoip-cn"], "action": "route", "outbound": "direct" }
+                                ],
+                                "rule_set": [
+                                  {
+                                    "type": "remote",
+                                    "tag": "geoip-cn",
+                                    "format": "binary",
+                                    "url": "https://example.invalid/geoip-cn.srs",
+                                    "download_detour": "direct"
+                                  }
+                                ],
+                                "final": "Proxy"
+                              }
+                            }
+                            """;
+        var parser = CreateParser();
+
+        var result = parser.Parse(json, CreateOptions());
+
+        Assert.Equal(SubscriptionFormat.SingBoxJson, result.Format);
+        var outbounds = result.Configuration["outbounds"]!.AsArray();
+        Assert.Contains(outbounds, outbound => outbound?["tag"]?.ToString() == "Auto");
+        Assert.Contains(outbounds, outbound => outbound?["tag"]?.ToString() == "Proxy");
+        Assert.Equal("geoip-cn", result.Configuration["route"]?["rule_set"]?[0]?["tag"]?.ToString());
+        Assert.Equal("Proxy", result.Configuration["route"]?["final"]?.ToString());
     }
 
     [Fact]
