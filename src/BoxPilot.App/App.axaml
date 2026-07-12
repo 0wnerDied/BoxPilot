@@ -7,7 +7,7 @@
              RequestedThemeVariant="Default">
   <TrayIcon.Icons>
     <TrayIcons>
-      <TrayIcon Icon="/Assets/boxpilot.ico"
+      <TrayIcon Icon="/Assets/boxpilot.png"
                 ToolTipText="BoxPilot"
                 Command="{Binding ShowWindowCommand}">
         <TrayIcon.Menu>

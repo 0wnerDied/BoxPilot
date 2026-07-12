@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
+using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
@@ -42,7 +43,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             if (!tagMap.TryAdd(originalTag, tag))
                 warnings.Add($"Duplicate Clash proxy name '{originalTag}' was renamed to '{tag}'.");
             converted["tag"] = tag;
-            outbounds.Add(converted);
+            JsonNodes.Append(outbounds, converted);
             nodeTags.Add(tag);
         }
 
@@ -64,7 +65,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         {
             var converted = ConvertGroup(group, groupTags[group], tagMap, nodeTags, warnings);
             if (converted is not null)
-                outbounds.Add(converted);
+                JsonNodes.Append(outbounds, converted);
         }
 
         string defaultOutbound;
@@ -75,7 +76,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         else
         {
             defaultOutbound = allocator.Allocate("Proxy");
-            outbounds.Add(new JsonObject
+            JsonNodes.Append(outbounds, new JsonObject
             {
                 ["type"] = "selector",
                 ["tag"] = defaultOutbound,
@@ -85,8 +86,8 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             });
         }
 
-        outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
-        outbounds.Add(new JsonObject { ["type"] = "block", ["tag"] = "block" });
+        JsonNodes.Append(outbounds, new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
+        JsonNodes.Append(outbounds, new JsonObject { ["type"] = "block", ["tag"] = "block" });
 
         var configuration = SingBoxConfigurationBuilder.CreateBaseConfiguration(outbounds, defaultOutbound);
         var route = configuration["route"]!.AsObject();
@@ -262,7 +263,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
                     continue;
             }
 
-            destination.Add(rule);
+            JsonNodes.Append(destination, rule);
         }
 
         foreach (var item in unsupported.OrderBy(static item => item.Key, StringComparer.Ordinal))

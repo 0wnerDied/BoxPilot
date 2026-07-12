@@ -13,7 +13,7 @@
         MinWidth="1080"
         MinHeight="700"
         WindowStartupLocation="CenterScreen"
-        Icon="/Assets/boxpilot.ico"
+        Icon="/Assets/boxpilot.png"
         Title="BoxPilot">
   <Grid RowDefinitions="66,*,36">
     <Border Grid.Row="0" BorderBrush="{DynamicResource CardBorderBrush}"

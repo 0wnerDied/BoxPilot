@@ -12,11 +12,14 @@ sealed class Program
 
     // The visual designer and desktop entry point share this builder.
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    {
+        var builder = AppBuilder.Configure<App>()
+            .UsePlatformDetect();
 #if DEBUG
+        builder
             .WithDeveloperTools()
-#endif
-            .WithInterFont()
             .LogToTrace();
+#endif
+        return builder;
+    }
 }

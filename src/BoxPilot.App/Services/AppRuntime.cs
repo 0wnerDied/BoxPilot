@@ -7,59 +7,44 @@ namespace BoxPilot.App.Services;
 
 public sealed class AppRuntime : IAsyncDisposable
 {
+    private readonly SingBoxService singBox;
+    private readonly SubscriptionClient subscriptionClient;
+
     public AppRuntime()
     {
-        Paths = AppPaths.CreateDefault();
-        SettingsStore = new SettingsStore(Paths);
-        ProfileRepository = new ProfileRepository(Paths);
-        SingBox = new SingBoxService(Paths);
-        Config = new SingBoxConfigService(Paths, SingBox);
-        SubscriptionClient = new SubscriptionClient();
-        SubscriptionParser = new SubscriptionParser(Config);
-        ProfileImporter = new ProfileImportService(
-            SubscriptionClient,
-            SubscriptionParser,
-            Config,
-            ProfileRepository);
+        var paths = AppPaths.CreateDefault();
+        var settingsStore = new SettingsStore(paths);
+        var profileRepository = new ProfileRepository(paths);
+        singBox = new SingBoxService(paths);
+        var config = new SingBoxConfigService(paths, singBox);
+        subscriptionClient = new SubscriptionClient();
+        var subscriptionParser = new SubscriptionParser(config);
+        var profileImporter = new ProfileImportService(
+            subscriptionClient,
+            subscriptionParser,
+            config,
+            profileRepository);
         Localization = new LocalizationService();
-        Themes = new ThemeService();
+        var themes = new ThemeService();
         Session = new AppSessionViewModel(
-            Paths,
-            SettingsStore,
-            ProfileRepository,
-            SingBox,
-            Config,
-            ProfileImporter,
+            paths,
+            settingsStore,
+            profileRepository,
+            singBox,
+            config,
+            profileImporter,
             Localization,
-            Themes);
+            themes);
     }
 
-    public AppPaths Paths { get; }
-
-    public SettingsStore SettingsStore { get; }
-
-    public ProfileRepository ProfileRepository { get; }
-
-    public SingBoxService SingBox { get; }
-
-    public SingBoxConfigService Config { get; }
-
-    public SubscriptionClient SubscriptionClient { get; }
-
-    public SubscriptionParser SubscriptionParser { get; }
-
-    public ProfileImportService ProfileImporter { get; }
-
     public LocalizationService Localization { get; }
-
-    public ThemeService Themes { get; }
 
     public AppSessionViewModel Session { get; }
 
     public async ValueTask DisposeAsync()
     {
         await Session.DisposeAsync();
-        SubscriptionClient.Dispose();
-        await SingBox.DisposeAsync();
+        subscriptionClient.Dispose();
+        await singBox.DisposeAsync();
     }
 }

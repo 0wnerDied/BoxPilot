@@ -6,12 +6,9 @@ namespace BoxPilot.App.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    private readonly LocalizationService localization;
-
     public MainViewModel(AppSessionViewModel session, LocalizationService localization)
     {
         Session = session;
-        this.localization = localization;
 
         Dashboard = new DashboardViewModel(session, localization);
         Profiles = new ProfilesViewModel(session, localization);
@@ -20,7 +17,6 @@ public partial class MainViewModel : ViewModelBase
         Tools = new ToolsViewModel(session, localization);
         Settings = new SettingsViewModel(session, localization);
         CurrentPage = Dashboard;
-        CurrentPageTitle = localization["NavDashboard"];
         localization.LanguageChanged += OnLanguageChanged;
     }
 
@@ -42,9 +38,6 @@ public partial class MainViewModel : ViewModelBase
     public partial ViewModelBase CurrentPage { get; private set; }
 
     [ObservableProperty]
-    public partial string CurrentPageTitle { get; private set; }
-
-    [ObservableProperty]
     public partial string CurrentPageKey { get; private set; } = "dashboard";
 
     public bool IsDashboardSelected => CurrentPageKey == "dashboard";
@@ -63,17 +56,15 @@ public partial class MainViewModel : ViewModelBase
     private void Navigate(string? page)
     {
         CurrentPageKey = page?.ToLowerInvariant() ?? "dashboard";
-        var destination = CurrentPageKey switch
+        CurrentPage = CurrentPageKey switch
         {
-            "profiles" => ((ViewModelBase)Profiles, localization["NavProfiles"]),
-            "configuration" => (Configuration, localization["NavConfiguration"]),
-            "logs" => (Logs, localization["NavLogs"]),
-            "tools" => (Tools, localization["NavTools"]),
-            "settings" => (Settings, localization["NavSettings"]),
-            _ => (Dashboard, localization["NavDashboard"]),
+            "profiles" => Profiles,
+            "configuration" => Configuration,
+            "logs" => Logs,
+            "tools" => Tools,
+            "settings" => Settings,
+            _ => Dashboard,
         };
-        CurrentPage = destination.Item1;
-        CurrentPageTitle = destination.Item2;
 
         if (CurrentPage == Settings)
             Settings.Refresh();
@@ -83,7 +74,6 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnLanguageChanged()
     {
-        Navigate(CurrentPageKey);
         Profiles.NotifyLanguageChanged();
         Settings.NotifyLanguageChanged();
     }

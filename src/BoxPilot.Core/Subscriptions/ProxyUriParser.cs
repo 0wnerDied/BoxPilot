@@ -83,20 +83,45 @@ internal static class ProxyUriParser
                 break;
         }
 
-        CopyQuery(query, source, "security", "tls", value => value is "tls" or "reality");
+        CopyQuery(
+            query,
+            source,
+            "security",
+            "tls",
+            static value => JsonValue.Create(value is "tls" or "reality"));
         CopyQuery(query, source, "sni", "servername");
         CopyQuery(query, source, "type", "network");
         CopyQuery(query, source, "flow", "flow");
         CopyQuery(query, source, "fp", "client-fingerprint");
-        CopyQuery(query, source, "allowInsecure", "skip-cert-verify", ParseBoolean);
-        CopyQuery(query, source, "insecure", "skip-cert-verify", ParseBoolean);
+        CopyQuery(
+            query,
+            source,
+            "allowInsecure",
+            "skip-cert-verify",
+            static value => JsonValue.Create(ParseBoolean(value)));
+        CopyQuery(
+            query,
+            source,
+            "insecure",
+            "skip-cert-verify",
+            static value => JsonValue.Create(ParseBoolean(value)));
         CopyQuery(query, source, "congestion_control", "congestion-controller");
         CopyQuery(query, source, "udp_relay_mode", "udp-relay-mode");
         CopyQuery(query, source, "alpn", "alpn", SplitCommaSeparated);
         CopyQuery(query, source, "obfs", "obfs");
         CopyQuery(query, source, "obfs-password", "obfs-password");
-        CopyQuery(query, source, "upmbps", "up", ParseInteger);
-        CopyQuery(query, source, "downmbps", "down", ParseInteger);
+        CopyQuery(
+            query,
+            source,
+            "upmbps",
+            "up",
+            static value => JsonValue.Create(ParseInteger(value)));
+        CopyQuery(
+            query,
+            source,
+            "downmbps",
+            "down",
+            static value => JsonValue.Create(ParseInteger(value)));
 
         if (query.TryGetValue("pbk", out var publicKey) || query.TryGetValue("publicKey", out publicKey))
         {
@@ -285,15 +310,15 @@ internal static class ProxyUriParser
             target[targetName] = value;
     }
 
-    private static void CopyQuery<T>(
+    private static void CopyQuery(
         IReadOnlyDictionary<string, string> query,
         JsonObject target,
         string sourceName,
         string targetName,
-        Func<string, T> converter)
+        Func<string, JsonNode?> converter)
     {
         if (query.TryGetValue(sourceName, out var value) && value.Length > 0)
-            target[targetName] = JsonValue.Create(converter(value));
+            target[targetName] = converter(value);
     }
 
     private static bool ParseBoolean(string value)

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
@@ -26,11 +27,11 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
             if (!string.Equals(sourceTag, tag, StringComparison.Ordinal))
                 warnings.Add($"Renamed duplicate proxy tag '{sourceTag}' to '{tag}'.");
             outbound["tag"] = tag;
-            outbounds.Add(outbound);
-            nodeTags.Add(tag);
+            JsonNodes.Append(outbounds, outbound);
+            JsonNodes.Append(nodeTags, tag);
         }
 
-        outbounds.Add(new JsonObject
+        JsonNodes.Append(outbounds, new JsonObject
         {
             ["type"] = "urltest",
             ["tag"] = "Auto",
@@ -39,7 +40,7 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
             ["interval"] = "3m",
             ["tolerance"] = 50,
         });
-        outbounds.Add(new JsonObject
+        JsonNodes.Append(outbounds, new JsonObject
         {
             ["type"] = "selector",
             ["tag"] = "Proxy",
@@ -49,8 +50,8 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
             ["default"] = "Auto",
             ["interrupt_exist_connections"] = true,
         });
-        outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
-        outbounds.Add(new JsonObject { ["type"] = "block", ["tag"] = "block" });
+        JsonNodes.Append(outbounds, new JsonObject { ["type"] = "direct", ["tag"] = "direct" });
+        JsonNodes.Append(outbounds, new JsonObject { ["type"] = "block", ["tag"] = "block" });
 
         var configuration = CreateBaseConfiguration(outbounds, "Proxy");
         return configService.ApplyRuntimeOptions(configuration, ToSettings(options));
@@ -67,21 +68,17 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
             },
             ["dns"] = new JsonObject
             {
-                ["servers"] = new JsonArray
-                {
-                    new JsonObject { ["type"] = "local", ["tag"] = "dns-local" },
-                },
+                ["servers"] = new JsonArray(
+                    new JsonObject { ["type"] = "local", ["tag"] = "dns-local" }),
                 ["final"] = "dns-local",
                 ["strategy"] = "prefer_ipv4",
             },
             ["outbounds"] = outbounds,
             ["route"] = new JsonObject
             {
-                ["rules"] = new JsonArray
-                {
+                ["rules"] = new JsonArray(
                     new JsonObject { ["action"] = "sniff" },
-                    new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" },
-                },
+                    new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" }),
                 ["final"] = finalOutbound,
                 ["auto_detect_interface"] = true,
             },

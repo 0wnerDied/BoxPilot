@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -35,8 +34,7 @@ public sealed class ClashApiClient : IDisposable
         using var request = CreateRequest(HttpMethod.Get, "version");
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        var json = await ReadObjectAsync(response.Content, cancellationToken).ConfigureAwait(false);
         return json?["version"]?.ToString() ?? "unknown";
     }
 
@@ -46,8 +44,7 @@ public sealed class ClashApiClient : IDisposable
         using var request = CreateRequest(HttpMethod.Get, "proxies");
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        var json = await ReadObjectAsync(response.Content, cancellationToken).ConfigureAwait(false);
         if (json?["proxies"] is not JsonObject proxies)
             return [];
 
@@ -79,7 +76,10 @@ public sealed class ClashApiClient : IDisposable
         using var request = CreateRequest(
             HttpMethod.Put,
             $"proxies/{Uri.EscapeDataString(group)}");
-        request.Content = JsonContent.Create(new { name = proxy });
+        request.Content = new StringContent(
+            new JsonObject { ["name"] = proxy }.ToJsonString(),
+            Encoding.UTF8,
+            "application/json");
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
@@ -98,8 +98,7 @@ public sealed class ClashApiClient : IDisposable
         if (!response.IsSuccessStatusCode)
             return null;
 
-        var json = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        var json = await ReadObjectAsync(response.Content, cancellationToken).ConfigureAwait(false);
         return json?["delay"]?.GetValue<int>();
     }
 
@@ -135,7 +134,8 @@ public sealed class ClashApiClient : IDisposable
             }
             while (!received.EndOfMessage);
 
-            var json = JsonNode.Parse(Encoding.UTF8.GetString(message.ToArray())) as JsonObject;
+            message.Position = 0;
+            var json = JsonNode.Parse(message) as JsonObject;
             if (json is null)
                 continue;
             progress.Report(new TrafficSnapshot(
@@ -156,5 +156,14 @@ public sealed class ClashApiClient : IDisposable
         if (!string.IsNullOrWhiteSpace(Secret))
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Secret);
         return request;
+    }
+
+    private static async Task<JsonObject?> ReadObjectAsync(
+        HttpContent content,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        return await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false)
+            as JsonObject;
     }
 }

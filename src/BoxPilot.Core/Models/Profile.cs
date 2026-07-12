@@ -4,8 +4,13 @@ namespace BoxPilot.Core.Models;
 
 public enum ProfileSource
 {
+    [JsonStringEnumMemberName("manual")]
     Manual,
+
+    [JsonStringEnumMemberName("subscription")]
     Subscription,
+
+    [JsonStringEnumMemberName("importedFile")]
     ImportedFile,
 }
 

@@ -30,3 +30,13 @@ Structured import is intentionally complemented by the raw JSON studio. Unknown 
 Core output enters a concurrent queue and is flushed to a bounded UI collection in batches. Traffic uses one cancellable WebSocket. Files are replaced atomically, process arguments never pass through a shell, API access is loopback-only, and subscription credentials are never committed or printed.
 
 Unsaved configuration drafts stay in memory when users switch profiles and are removed only after a successful save or explicit profile deletion. This prevents accidental data loss without writing invalid JSON to disk.
+
+## Release footprint
+
+Release packages use full IL trimming and compressed, self-contained single-file
+publishing. Persistence uses generated JSON metadata so the trimmer can remove
+reflection-only serializer paths safely. The remaining payload is primarily the
+.NET runtime, Skia, HarfBuzz, and the Avalonia native backend; keeping these in
+the package lets BoxPilot run without a separately installed .NET runtime or an
+operating-system WebView. macOS applies a second compression layer in the DMG,
+while Windows keeps the result as one directly runnable executable.

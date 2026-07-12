@@ -50,6 +50,7 @@ PLIST
       -volname BoxPilot \
       -srcfolder "$staging" \
       -format UDZO \
+      -imagekey zlib-level=9 \
       -ov \
       "$dmg"; then
       created=true
@@ -129,18 +130,13 @@ publish="$target/publish"
 rm -rf "$target"
 mkdir -p "$publish"
 
-dotnet restore "$project" -r "$rid"
+dotnet restore "$project" -r "$rid" -p:Configuration=Release
 dotnet publish "$project" \
   -c Release \
   -r "$rid" \
   --self-contained true \
   --no-restore \
-  -o "$publish" \
-  -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:PublishTrimmed=false \
-  -p:DebugType=None \
-  -p:DebugSymbols=false
+  -o "$publish"
 
 find "$publish" -type f -name '*.pdb' -delete
 

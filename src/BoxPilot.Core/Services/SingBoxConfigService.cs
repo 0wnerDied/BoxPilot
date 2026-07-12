@@ -94,7 +94,7 @@ public sealed class SingBoxConfigService(
             .FirstOrDefault(item => string.Equals(item["type"]?.GetValue<string>(), "tun", StringComparison.Ordinal));
         if (settings.EnableTun && tun is null)
         {
-            inbounds.Add(new JsonObject
+            JsonNodes.Append(inbounds, new JsonObject
             {
                 ["type"] = "tun",
                 ["tag"] = "tun-in",
@@ -138,28 +138,22 @@ public sealed class SingBoxConfigService(
             },
             ["dns"] = new JsonObject
             {
-                ["servers"] = new JsonArray
-                {
+                ["servers"] = new JsonArray(
                     new JsonObject
                     {
                         ["type"] = "local",
                         ["tag"] = "dns-local",
-                    },
-                },
+                    }),
                 ["final"] = "dns-local",
             },
-            ["outbounds"] = new JsonArray
-            {
+            ["outbounds"] = new JsonArray(
                 new JsonObject { ["type"] = "direct", ["tag"] = "direct" },
-                new JsonObject { ["type"] = "block", ["tag"] = "block" },
-            },
+                new JsonObject { ["type"] = "block", ["tag"] = "block" }),
             ["route"] = new JsonObject
             {
-                ["rules"] = new JsonArray
-                {
+                ["rules"] = new JsonArray(
                     new JsonObject { ["action"] = "sniff" },
-                    new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" },
-                },
+                    new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" }),
                 ["final"] = "direct",
                 ["auto_detect_interface"] = true,
             },

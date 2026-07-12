@@ -148,9 +148,9 @@ public sealed class ProfileRepository(AppPaths paths)
         try
         {
             await using var stream = File.OpenRead(paths.ProfileIndexFile);
-            return await JsonSerializer.DeserializeAsync<ProfileIndex>(
+            return await JsonSerializer.DeserializeAsync(
                     stream,
-                    JsonDefaults.SerializerOptions,
+                    BoxPilotJsonContext.Default.ProfileIndex,
                     cancellationToken)
                 .ConfigureAwait(false)
                 ?? new ProfileIndex();
@@ -163,7 +163,7 @@ public sealed class ProfileRepository(AppPaths paths)
 
     private Task SaveIndexAsync(ProfileIndex index, CancellationToken cancellationToken)
     {
-        var json = JsonSerializer.Serialize(index, JsonDefaults.SerializerOptions);
+        var json = JsonSerializer.Serialize(index, BoxPilotJsonContext.Default.ProfileIndex);
         return AtomicFile.WriteAllTextAsync(paths.ProfileIndexFile, json, cancellationToken);
     }
 }
