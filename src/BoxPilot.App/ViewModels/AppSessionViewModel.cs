@@ -156,21 +156,14 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             }
 
             await ReloadProfilesAsync(cancellationToken);
-            if (Profiles.Count == 0)
-            {
-                var starter = configService.Serialize(configService.CreateStarterConfiguration(Settings));
-                var profile = await profileRepository.CreateAsync(
-                    localization["ManualProfile"],
-                    starter,
-                    ProfileSource.Manual,
-                    cancellationToken);
-                Profiles.Add(profile);
-            }
-
             var selected = Settings.SelectedProfileId is { } selectedId
                 ? Profiles.FirstOrDefault(profile => profile.Id == selectedId)
                 : null;
-            await SelectProfileAsync(selected ?? Profiles[0], cancellationToken);
+            selected ??= Profiles.FirstOrDefault();
+            if (selected is not null)
+                await SelectProfileAsync(selected, cancellationToken);
+            else
+                await ClearProfileSelectionAsync(cancellationToken);
 
             IsInitialized = true;
             StatusMessage = localization["Ready"];
@@ -370,14 +363,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await ReloadProfilesAsync(cancellationToken);
             if (Profiles.Count == 0)
             {
-                var configuration = configService.Serialize(configService.CreateStarterConfiguration(Settings));
-                var replacement = await profileRepository.CreateAsync(
-                    localization["ManualProfile"],
-                    configuration,
-                    ProfileSource.Manual,
-                    cancellationToken);
-                await ReloadProfilesAsync(cancellationToken);
-                await SelectProfileAsync(Profiles.First(item => item.Id == replacement.Id), cancellationToken);
+                await ClearProfileSelectionAsync(cancellationToken);
             }
             else
             {
@@ -557,6 +543,17 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         foreach (var profile in profiles)
             Profiles.Add(profile);
         OnPropertyChanged(nameof(ActiveNodeCount));
+    }
+
+    private async Task ClearProfileSelectionAsync(CancellationToken cancellationToken)
+    {
+        var clearPersistedSelection = Settings.SelectedProfileId is not null;
+        SelectedProfile = null;
+        SetConfigurationText(string.Empty, false);
+        Settings = Settings with { SelectedProfileId = null };
+        if (clearPersistedSelection)
+            await settingsStore.SaveAsync(Settings, cancellationToken);
+        NotifyComputedState();
     }
 
     private async Task SelectProfileSafelyAsync(Profile profile)
