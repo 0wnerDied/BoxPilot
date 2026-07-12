@@ -23,7 +23,7 @@ Comments explain rationale, races, units, thresholds, or platform/API constraint
 
 ## Testing Guidelines
 
-Every behavior change needs deterministic xUnit coverage, including malformed input, failure, cancellation, and concurrency paths. Name tests after observable behavior, such as `ParseClashYamlConvertsVlessGroupsAndRules`. Bug fixes require a regression test. Tests must use temporary directories and must not change system proxy settings. Validate generated configurations with `sing-box check` when available.
+Add deterministic xUnit coverage for critical logic: parsing and configuration generation, persistence, subscription conversion, process lifecycle, and failure, cancellation, or concurrency paths. Add a regression test when a defect is likely to recur and the test can assert public behavior. Do not add brittle tests for prose, static style values, simple XAML layout, or packaging file lists; verify those changes with build, lint, and a focused manual smoke test instead. Name tests after observable behavior, such as `ParseClashYamlConvertsVlessGroupsAndRules`. Tests must use temporary directories and must not change system proxy settings. Validate generated configurations with `sing-box check` when available.
 
 ## Mandatory Commit & Pull Request Style
 
