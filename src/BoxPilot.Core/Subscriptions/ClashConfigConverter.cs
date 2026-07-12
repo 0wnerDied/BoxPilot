@@ -112,12 +112,16 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         var configuration = SingBoxConfigurationBuilder.CreateBaseConfiguration(outbounds, defaultOutbound);
         var route = configuration["route"]!.AsObject();
         var routeRules = route["rules"]!.AsArray();
+        var ruleSets = new JsonArray();
         var finalOutbound = ConvertRules(
             JsonValueReader.Array(clash, "rules"),
             tagMap,
             routeRules,
+            ruleSets,
             defaultOutbound,
             warnings);
+        if (ruleSets.Count > 0)
+            route["rule_set"] = ruleSets;
         route["final"] = finalOutbound;
 
         configuration = configService.ApplyRuntimeOptions(
@@ -205,6 +209,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         JsonArray? sourceRules,
         IReadOnlyDictionary<string, string> tagMap,
         JsonArray destination,
+        JsonArray destinationRuleSets,
         string defaultOutbound,
         ICollection<string> warnings)
     {
@@ -212,6 +217,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             return defaultOutbound;
 
         var unsupported = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var ruleSetTags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var finalOutbound = defaultOutbound;
 
         foreach (var ruleNode in sourceRules)
@@ -270,6 +276,23 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
                 case "SRC-IP-CIDR":
                     rule["source_ip_cidr"] = new JsonArray(value);
                     break;
+                case "GEOIP" when IsPrivateGeoIp(value):
+                    rule["ip_is_private"] = true;
+                    break;
+                case "GEOIP":
+                    rule["rule_set"] = new JsonArray(EnsureGeoRuleSet(
+                        "geoip",
+                        value,
+                        destinationRuleSets,
+                        ruleSetTags));
+                    break;
+                case "GEOSITE":
+                    rule["rule_set"] = new JsonArray(EnsureGeoRuleSet(
+                        "geosite",
+                        value,
+                        destinationRuleSets,
+                        ruleSetTags));
+                    break;
                 case "DST-PORT":
                     AddPort(rule, value, "port", "port_range");
                     break;
@@ -302,6 +325,38 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         }
 
         return finalOutbound;
+    }
+
+    private static string EnsureGeoRuleSet(
+        string database,
+        string value,
+        JsonArray destination,
+        IDictionary<string, string> tags)
+    {
+        var name = value.Trim().ToLowerInvariant();
+        var key = $"{database}:{name}";
+        if (tags.TryGetValue(key, out var existingTag))
+            return existingTag;
+
+        var tag = $"{database}-{name}";
+        tags[key] = tag;
+        JsonNodes.Append(destination, new JsonObject
+        {
+            ["type"] = "remote",
+            ["tag"] = tag,
+            ["format"] = "binary",
+            ["url"] = "https://fastly.jsdelivr.net/gh/SagerNet/"
+                      + $"sing-{database}@rule-set/{Uri.EscapeDataString(tag)}.srs",
+            ["download_detour"] = "direct",
+            ["update_interval"] = "1d",
+        });
+        return tag;
+    }
+
+    private static bool IsPrivateGeoIp(string value)
+    {
+        return value.Trim().Equals("LAN", StringComparison.OrdinalIgnoreCase)
+               || value.Trim().Equals("PRIVATE", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddPort(JsonObject rule, string value, string portName, string rangeName)

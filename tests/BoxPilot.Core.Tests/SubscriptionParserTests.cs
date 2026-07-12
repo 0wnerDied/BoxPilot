@@ -78,6 +78,53 @@ public sealed class SubscriptionParserTests : IDisposable
     }
 
     [Fact]
+    public void ParseClashYamlConvertsGeoRulesToModernRuleSets()
+    {
+        const string yaml = """
+                            proxies:
+                              - name: Edge
+                                type: vless
+                                server: example.com
+                                port: 443
+                                uuid: 11111111-1111-1111-1111-111111111111
+                            proxy-groups:
+                              - name: Source group
+                                type: select
+                                proxies: [Edge, DIRECT]
+                            rules:
+                              - GEOIP,CN,DIRECT
+                              - GEOIP,LAN,DIRECT,no-resolve
+                              - GEOSITE,CN,Source group
+                              - MATCH,Source group
+                            """;
+        var parser = CreateParser();
+
+        var result = parser.Parse(yaml, CreateOptions());
+
+        Assert.Empty(result.Warnings);
+        var route = result.Configuration["route"]!.AsObject();
+        var ruleSets = route["rule_set"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>().ToArray();
+        Assert.Collection(
+            ruleSets,
+            geoIp =>
+            {
+                Assert.Equal("geoip-cn", geoIp["tag"]?.ToString());
+                Assert.Equal("binary", geoIp["format"]?.ToString());
+                Assert.Equal("direct", geoIp["download_detour"]?.ToString());
+                Assert.EndsWith("/geoip-cn.srs", geoIp["url"]?.ToString());
+            },
+            geoSite =>
+            {
+                Assert.Equal("geosite-cn", geoSite["tag"]?.ToString());
+                Assert.EndsWith("/geosite-cn.srs", geoSite["url"]?.ToString());
+            });
+        var rules = route["rules"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>().ToArray();
+        Assert.Contains(rules, rule => rule["rule_set"]?[0]?.ToString() == "geoip-cn");
+        Assert.Contains(rules, rule => rule["rule_set"]?[0]?.ToString() == "geosite-cn");
+        Assert.Contains(rules, rule => rule["ip_is_private"]?.GetValue<bool>() == true);
+    }
+
+    [Fact]
     public void ParseBase64UriListRejectsInvalidUtf8()
     {
         var prefix = Encoding.UTF8.GetBytes("trojan://secret@example.com:443#");
