@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using BoxPilot.Core.Infrastructure;
+using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
 namespace BoxPilot.Core.Tests;
@@ -67,5 +68,66 @@ public sealed class SingBoxConfigServiceTests
         Assert.Single(
             preparedAgain["outbounds"]!.AsArray().OfType<JsonObject>(),
             outbound => outbound["type"]?.ToString() == "urltest");
+    }
+
+    [Fact]
+    public async Task ApplyRuntimeOptionsRemovesImportedTunWhenDisabled()
+    {
+        var paths = new AppPaths(Path.Combine(
+            Path.GetTempPath(),
+            $"boxpilot-tests-{Guid.NewGuid():N}"));
+        await using var core = new SingBoxService(paths);
+        var service = new SingBoxConfigService(paths, core);
+        var configuration = new JsonObject
+        {
+            ["inbounds"] = new JsonArray(
+                new JsonObject { ["type"] = "tun", ["tag"] = "in" },
+                new JsonObject { ["type"] = "TUN", ["tag"] = "secondary" },
+                new JsonObject { ["type"] = "mixed", ["tag"] = "mixed-in" }),
+        };
+
+        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        {
+            EnableTun = false,
+        });
+
+        Assert.DoesNotContain(
+            result["inbounds"]!.AsArray().OfType<JsonObject>(),
+            inbound => string.Equals(
+                inbound["type"]?.ToString(),
+                "tun",
+                StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(3, configuration["inbounds"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public async Task ApplyRuntimeOptionsKeepsImportedTunWhenEnabled()
+    {
+        var paths = new AppPaths(Path.Combine(
+            Path.GetTempPath(),
+            $"boxpilot-tests-{Guid.NewGuid():N}"));
+        await using var core = new SingBoxService(paths);
+        var service = new SingBoxConfigService(paths, core);
+        var importedTun = new JsonObject
+        {
+            ["type"] = "tun",
+            ["tag"] = "provider-tun",
+            ["address"] = new JsonArray("10.0.0.1/30"),
+        };
+        var configuration = new JsonObject
+        {
+            ["inbounds"] = new JsonArray(importedTun),
+        };
+
+        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        {
+            EnableTun = true,
+        });
+
+        var tun = Assert.Single(
+            result["inbounds"]!.AsArray().OfType<JsonObject>(),
+            inbound => inbound["type"]?.ToString() == "tun");
+        Assert.Equal("provider-tun", tun["tag"]?.ToString());
+        Assert.Equal("10.0.0.1/30", tun["address"]?[0]?.ToString());
     }
 }

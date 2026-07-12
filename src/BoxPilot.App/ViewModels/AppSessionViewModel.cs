@@ -555,7 +555,9 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         var profile = SelectedProfile
             ?? throw new InvalidOperationException(localization["NoProfile"]);
-        var formatted = configService.FormatJson(ConfigurationText);
+        var parsed = configService.Parse(ConfigurationText);
+        var formatted = configService.Serialize(
+            configService.ApplyRuntimeOptions(parsed, Settings));
         var validation = await configService.ValidateAsync(formatted, cancellationToken);
         if (!validation.IsSuccess)
             throw new InvalidDataException(validation.CombinedOutput);
@@ -624,10 +626,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             profile.SubscriptionFormat,
             nameof(SubscriptionFormat.SingBoxJson),
             StringComparison.Ordinal);
-        var shouldFormat = configuration.Contains("\\u", StringComparison.OrdinalIgnoreCase);
-        if (!shouldPrepare && !shouldFormat)
-            return configuration;
-
         var parsed = configService.Parse(configuration);
         if (shouldPrepare)
         {
@@ -636,6 +634,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 cacheId = ProfileImportService.CreateCacheId(subscriptionUrl);
             parsed = configService.PrepareManagedSubscription(parsed, cacheId);
         }
+        parsed = configService.ApplyRuntimeOptions(parsed, Settings);
 
         // Subscription profiles are app-owned; manual profile formatting remains untouched.
         var normalized = configService.Serialize(parsed);

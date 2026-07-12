@@ -124,6 +124,27 @@ public sealed class SubscriptionParserTests : IDisposable
         Assert.Null(result.Configuration["route"]?["override_android_vpn"]);
     }
 
+    [Fact]
+    public void ParseSingBoxJsonRemovesTunWhenOptionIsDisabled()
+    {
+        const string json = """
+                            {
+                              "inbounds": [
+                                { "type": "mixed", "tag": "mixed-in" },
+                                { "type": "tun", "tag": "provider-tun", "auto_route": true }
+                              ],
+                              "outbounds": [{ "type": "direct", "tag": "direct" }]
+                            }
+                            """;
+        var parser = CreateParser();
+
+        var result = parser.Parse(json, CreateOptions());
+
+        Assert.DoesNotContain(
+            result.Configuration["inbounds"]!.AsArray(),
+            inbound => inbound?["type"]?.ToString() == "tun");
+    }
+
     private SubscriptionParser CreateParser()
     {
         var paths = new AppPaths(root);

@@ -104,10 +104,14 @@ public sealed class SingBoxConfigService(
         mixed["listen_port"] = settings.MixedPort;
         mixed["set_system_proxy"] = settings.EnableSystemProxy;
 
-        var tun = inbounds
+        var tunInbounds = inbounds
             .OfType<JsonObject>()
-            .FirstOrDefault(item => string.Equals(item["type"]?.GetValue<string>(), "tun", StringComparison.Ordinal));
-        if (settings.EnableTun && tun is null)
+            .Where(static item => string.Equals(
+                item["type"]?.GetValue<string>(),
+                "tun",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (settings.EnableTun && tunInbounds.Length == 0)
         {
             JsonNodes.Append(inbounds, new JsonObject
             {
@@ -119,12 +123,10 @@ public sealed class SingBoxConfigService(
                 ["stack"] = "system",
             });
         }
-        else if (!settings.EnableTun && tun is not null && string.Equals(
-                     tun["tag"]?.GetValue<string>(),
-                     "tun-in",
-                     StringComparison.Ordinal))
+        else if (!settings.EnableTun)
         {
-            inbounds.Remove(tun);
+            foreach (var tun in tunInbounds)
+                inbounds.Remove(tun);
         }
 
         var experimental = EnsureObject(clone, "experimental");
