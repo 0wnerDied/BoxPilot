@@ -11,6 +11,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private Process? process;
     private CancellationTokenSource? logCancellation;
+    private CoreServiceClient? coreService;
+    private bool serviceCoreActive;
+    private int? serviceProcessId;
     private CoreState state = CoreState.Stopped;
 
     public event Action<CoreLogEntry>? LogReceived;
@@ -23,6 +26,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     {
         get
         {
+            if (serviceCoreActive)
+                return serviceProcessId;
+
             try
             {
                 return process is { HasExited: false } runningProcess
@@ -37,6 +43,8 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     }
 
     public string ExecutablePath { get; private set; } = string.Empty;
+
+    public bool IsCoreServiceInstalled => CoreServiceInstaller.IsInstalled(paths);
 
     public string ResolveExecutable(string? configuredPath = null)
     {
@@ -138,13 +146,37 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         await lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (process is { HasExited: false })
+            if (process is { HasExited: false } || serviceCoreActive)
                 return;
             if (string.IsNullOrWhiteSpace(ExecutablePath))
                 await InitializeAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
             SetState(CoreState.Starting);
             paths.EnsureCreated();
+            if (await TunConfiguration.ContainsTunInboundAsync(configurationPath, cancellationToken)
+                    .ConfigureAwait(false)
+                && !ProcessPrivileges.IsElevated())
+            {
+                var client = GetCoreService();
+                serviceCoreActive = true;
+                try
+                {
+                    await client.StartAsync(
+                            ExecutablePath,
+                            Path.GetFullPath(configurationPath),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    if (state != CoreState.Running)
+                        SetState(CoreState.Running, serviceProcessId);
+                    return;
+                }
+                catch
+                {
+                    serviceCoreActive = false;
+                    serviceProcessId = null;
+                    throw;
+                }
+            }
 
             var startInfo = CreateStartInfo(["run", "-c", Path.GetFullPath(configurationPath)]);
             startInfo.WorkingDirectory = paths.RuntimeDirectory;
@@ -178,7 +210,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         catch (Exception exception)
         {
             CleanupProcess();
-            SetState(CoreState.Faulted, error: exception.Message);
+            SetState(
+                CoreState.Faulted,
+                error: exception is CoreServiceException ? null : exception.Message);
             throw;
         }
         finally
@@ -194,6 +228,22 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         await lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (serviceCoreActive)
+            {
+                SetState(CoreState.Stopping, serviceProcessId);
+                try
+                {
+                    await coreService!.StopAsync(cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    serviceCoreActive = false;
+                    serviceProcessId = null;
+                }
+                SetState(CoreState.Stopped);
+                return;
+            }
+
             runningProcess = process;
             if (runningProcess is null || runningProcess.HasExited)
             {
@@ -243,6 +293,18 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     {
         await StopAsync(cancellationToken).ConfigureAwait(false);
         await StartAsync(configurationPath, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UninstallCoreServiceAsync(CancellationToken cancellationToken = default)
+    {
+        await StopAsync(cancellationToken).ConfigureAwait(false);
+        if (coreService is not null)
+        {
+            await coreService.DisposeAsync().ConfigureAwait(false);
+            coreService = null;
+        }
+        await CoreServiceInstaller.UninstallElevatedAsync(paths, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<CommandResult> RunCommandAsync(
@@ -296,6 +358,11 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             CleanupProcess();
         }
 
+        if (coreService is not null)
+        {
+            await coreService.DisposeAsync().ConfigureAwait(false);
+            coreService = null;
+        }
         lifecycleGate.Dispose();
     }
 
@@ -378,6 +445,37 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             process.Dispose();
             process = null;
         }
+    }
+
+    private CoreServiceClient GetCoreService()
+    {
+        if (coreService is not null)
+            return coreService;
+
+        coreService = new CoreServiceClient(paths);
+        coreService.LogReceived += entry => LogReceived?.Invoke(entry);
+        coreService.StateChanged += OnServiceStateChanged;
+        coreService.Disconnected += OnCoreServiceDisconnected;
+        return coreService;
+    }
+
+    private void OnServiceStateChanged(CoreStateChangedEventArgs eventArgs)
+    {
+        serviceProcessId = eventArgs.ProcessId;
+        if (eventArgs.Current is CoreState.Stopped or CoreState.Faulted)
+        {
+            serviceCoreActive = false;
+            serviceProcessId = null;
+        }
+        SetState(eventArgs.Current, eventArgs.ProcessId, eventArgs.Error);
+    }
+
+    private void OnCoreServiceDisconnected(string error)
+    {
+        serviceCoreActive = false;
+        serviceProcessId = null;
+        if (state != CoreState.Stopped)
+            SetState(CoreState.Faulted, error: error);
     }
 
     private void SetState(CoreState newState, int? processId = null, string? error = null)

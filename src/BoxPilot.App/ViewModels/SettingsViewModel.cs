@@ -75,6 +75,9 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void OpenDataDirectory() => Session.OpenDataDirectory();
 
+    [RelayCommand]
+    private Task UninstallTunServiceAsync() => Session.UninstallTunServiceAsync();
+
     public void Refresh()
     {
         var settings = Session.Settings;

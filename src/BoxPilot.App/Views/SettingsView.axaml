@@ -63,8 +63,14 @@
                           IsChecked="{Binding EnableSystemProxy}" />
             <ToggleSwitch Content="{DynamicResource TunMode}" IsChecked="{Binding EnableTun}" />
             <Border Classes="soft-panel" Margin="0,7,0,0">
-              <TextBlock Text="{DynamicResource NetworkChangesHint}" Classes="muted"
-                         FontSize="13" TextWrapping="Wrap" />
+              <StackPanel Spacing="10">
+                <TextBlock Text="{DynamicResource NetworkChangesHint}" Classes="muted"
+                           FontSize="13" TextWrapping="Wrap" />
+                <Button Classes="ghost" Content="{DynamicResource RemoveTunService}"
+                        Command="{Binding UninstallTunServiceCommand}"
+                        IsVisible="{Binding Session.IsTunServiceInstalled}"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
             </Border>
           </StackPanel>
         </Grid>

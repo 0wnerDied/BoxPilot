@@ -128,6 +128,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     public string TunDisplay => localization[Settings.EnableTun ? "Enabled" : "Disabled"];
 
+    public bool IsTunServiceInstalled => singBox.IsCoreServiceInstalled;
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await initializationGate.WaitAsync(cancellationToken);
@@ -157,8 +159,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             catch (Exception exception)
             {
                 CoreVersion = localization["CoreNotFound"];
-                StatusMessage = exception.Message;
-                Toast.Show(exception.Message, ToastLevel.Error);
+                StatusMessage = DescribeError(exception);
+                Toast.Show(StatusMessage, ToastLevel.Error);
             }
 
             await ReloadProfilesAsync(cancellationToken);
@@ -442,8 +444,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = exception.Message;
-            Toast.Show(exception.Message, ToastLevel.Error);
+            StatusMessage = DescribeError(exception);
+            Toast.Show(StatusMessage, ToastLevel.Error);
             throw;
         }
         finally
@@ -472,6 +474,17 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 : new ProcessStartInfo("xdg-open", paths.RootDirectory);
         startInfo.UseShellExecute = false;
         Process.Start(startInfo)?.Dispose();
+    }
+
+    public Task UninstallTunServiceAsync(CancellationToken cancellationToken = default)
+    {
+        return RunBusyAsync(async () =>
+        {
+            await singBox.UninstallCoreServiceAsync(cancellationToken);
+            StatusMessage = localization["TunServiceRemoved"];
+            Toast.Show(StatusMessage, ToastLevel.Success);
+            OnPropertyChanged(nameof(IsTunServiceInstalled));
+        });
     }
 
     public async ValueTask DisposeAsync()
@@ -586,8 +599,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = exception.Message;
-            Toast.Show(exception.Message, ToastLevel.Error);
+            StatusMessage = DescribeError(exception);
+            Toast.Show(StatusMessage, ToastLevel.Error);
         }
     }
 
@@ -657,8 +670,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = exception.Message;
-            Toast.Show(exception.Message, ToastLevel.Error);
+            StatusMessage = DescribeError(exception);
+            Toast.Show(StatusMessage, ToastLevel.Error);
             return fallback();
         }
         finally
@@ -680,8 +693,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             CoreState = eventArgs.Current;
             if (!string.IsNullOrWhiteSpace(eventArgs.Error))
             {
-                StatusMessage = eventArgs.Error;
-                Toast.Show(eventArgs.Error, ToastLevel.Error);
+                StatusMessage = DescribeError(eventArgs.Error);
+                Toast.Show(StatusMessage, ToastLevel.Error);
             }
             if (eventArgs.Current is CoreState.Stopped or CoreState.Faulted)
                 StopTrafficMonitor();
@@ -758,6 +771,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(ActiveNodeDisplay));
         OnPropertyChanged(nameof(CoreStateDisplay));
         OnPropertyChanged(nameof(TunDisplay));
+        OnPropertyChanged(nameof(IsTunServiceInstalled));
     }
 
     private void ShowImportOutcomeToast(ProfileImportOutcome outcome)
@@ -775,6 +789,32 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private void OnLanguageChanged()
     {
         NotifyComputedState();
+    }
+
+    private string DescribeError(Exception exception)
+    {
+        return exception is CoreServiceException serviceException
+            ? serviceException.Failure switch
+            {
+                CoreServiceFailure.AuthorizationDenied => localization["ServiceAuthorizationDenied"],
+                CoreServiceFailure.InstallationFailed => localization["ServiceInstallationFailed"],
+                CoreServiceFailure.RemovalFailed => localization["ServiceRemovalFailed"],
+                _ => localization["ServiceUnavailable"],
+            }
+            : DescribeError(exception.Message);
+    }
+
+    private string DescribeError(string error)
+    {
+        return error switch
+        {
+            CoreServiceErrorCodes.AuthorizationDenied => localization["ServiceAuthorizationDenied"],
+            CoreServiceErrorCodes.InstallationFailed => localization["ServiceInstallationFailed"],
+            CoreServiceErrorCodes.RemovalFailed => localization["ServiceRemovalFailed"],
+            CoreServiceErrorCodes.Unavailable => localization["ServiceUnavailable"],
+            CoreServiceErrorCodes.Disconnected => localization["ServiceDisconnected"],
+            _ => error,
+        };
     }
 
     private static string FormatRate(long bytesPerSecond)

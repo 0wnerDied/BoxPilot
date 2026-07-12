@@ -7,8 +7,16 @@ BoxPilot separates the Avalonia presentation layer from all sing-box and subscri
 1. `AppRuntime` creates paths, stores, the sing-box process service, subscription services, and the shared session view model.
 2. `SettingsStore` generates a private Clash API secret and persists user preferences atomically.
 3. `ProfileRepository` stores metadata in `profiles.json` and each configuration in a separate restricted file.
-4. `SingBoxService` discovers the installed binary, validates configurations, starts one managed process, captures both output streams asynchronously, and performs graceful shutdown.
+4. `SingBoxService` discovers the installed binary, validates configurations, starts one managed process, captures both output streams asynchronously, and performs graceful shutdown. TUN configurations are delegated to the protected core service.
 5. `ClashApiClient` supplies selector state, latency tests, and WebSocket traffic samples.
+
+## Privileged TUN boundary
+
+The Avalonia process always runs with the current user's permissions. On the first TUN start, BoxPilot requests administrator approval to install an owner-scoped service: a LaunchDaemon on macOS or a Windows Service. The installer copies the current BoxPilot service host and selected sing-box binary into a system-protected directory. Later TUN starts do not elevate the GUI or execute a user-selected path as root.
+
+The GUI authenticates over a user-restricted Unix socket or Windows named pipe with a 256-bit local token. IPC accepts only bounded lifecycle messages and configuration content; the protected sing-box path is fixed at installation. Application and core fingerprints trigger a one-time service update after either binary changes. Losing the GUI connection stops sing-box and removes its temporary configuration, while the installed service remains idle for the next launch. Settings exposes explicit service removal.
+
+sing-box 1.13 uses the Clash API for selectors, traffic, and connection state. The 1.14 gRPC API can replace those runtime queries after it becomes stable and is detected, but it does not replace the operating-system service that owns TUN privileges.
 
 ## Subscription pipeline
 
@@ -27,7 +35,7 @@ Structured import is intentionally complemented by the raw JSON studio. Unknown 
 
 ## Performance and safety
 
-Core output enters a concurrent queue and is flushed to a bounded UI collection in batches. Traffic uses one cancellable WebSocket. Files are replaced atomically, process arguments never pass through a shell, API access is loopback-only, and subscription credentials are never committed or printed.
+Core output enters a concurrent queue and is flushed to a bounded UI collection in batches. Traffic uses one cancellable WebSocket. Files are replaced atomically, service messages are length-bounded, process arguments never pass through a shell, API access is loopback-only, and subscription credentials are never committed or printed.
 
 Unsaved configuration drafts stay in memory when users switch profiles and are removed only after a successful save or explicit profile deletion. This prevents accidental data loss without writing invalid JSON to disk.
 
@@ -40,3 +48,5 @@ reflection-only serializer paths safely. The remaining payload is primarily the
 the package lets BoxPilot run without a separately installed .NET runtime or an
 operating-system WebView. macOS applies a second compression layer in the DMG,
 while Windows keeps the result as one directly runnable executable.
+The same trimmed executable contains the dormant service entry point, so release
+packages do not carry a second .NET runtime or a duplicate helper binary.

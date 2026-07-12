@@ -31,4 +31,8 @@ internal static class JsonDefaults
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(AppSettings))]
 [JsonSerializable(typeof(ProfileIndex))]
+[JsonSerializable(typeof(CoreServiceMessage))]
+[JsonSerializable(typeof(CoreServiceInstallRequest))]
+[JsonSerializable(typeof(CoreServiceConfiguration))]
+[JsonSerializable(typeof(CoreServiceUninstallRequest))]
 internal sealed partial class BoxPilotJsonContext : JsonSerializerContext;

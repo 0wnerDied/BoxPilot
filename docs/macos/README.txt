@@ -27,6 +27,14 @@ macOS 可能提示无法验证开发者。
 如果安装到了其他位置，请相应修改命令中的路径。以上命令不需要 sudo。
 不要全局关闭 Gatekeeper。
 
+TUN 系统服务
+------------
+
+首次启动 TUN 时，BoxPilot 会请求管理员授权并安装受保护的 LaunchDaemon。
+这是一次性操作；后续启动 TUN 不再要求输入密码。退出应用会停止 sing-box，
+但保留空闲服务。若不再使用 TUN，可在 BoxPilot 的“设置”中点击
+“移除 TUN 系统服务”。
+
 
 BoxPilot for macOS — Installation and First Launch
 ==================================================
@@ -57,3 +65,12 @@ Terminal and run:
 
 Adjust the path if you installed the app elsewhere. Do not use sudo and do
 not disable Gatekeeper globally.
+
+TUN system service
+------------------
+
+The first TUN start asks for administrator approval and installs a protected
+LaunchDaemon. This is a one-time operation; later TUN starts do not ask for a
+password. Quitting BoxPilot stops sing-box but leaves the idle service ready
+for the next launch. Use Remove TUN service in Settings when it is no longer
+needed.
