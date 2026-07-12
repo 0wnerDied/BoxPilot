@@ -392,7 +392,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
     private void WriteLog(CoreLogStream stream, string message)
     {
-        LogReceived?.Invoke(new CoreLogEntry(DateTimeOffset.Now, stream, message));
+        LogReceived?.Invoke(CoreLogParser.Parse(DateTimeOffset.Now, stream, message));
     }
 
     private static void RequestGracefulStop(Process runningProcess)

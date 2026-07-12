@@ -416,6 +416,44 @@
     <Style Selector="ListBox.log-list ListBoxItem:selected /template/ ContentPresenter">
       <Setter Property="Background" Value="#10FFFFFF" />
     </Style>
+    <Style Selector="ListBox.log-list ListBoxItem">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Border.log-row">
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
+    </Style>
+    <Style Selector="Border.log-row.warning">
+      <Setter Property="BorderBrush" Value="#D5A56F" />
+      <Setter Property="Background" Value="#0ED5A56F" />
+    </Style>
+    <Style Selector="Border.log-row.error, Border.log-row.fatal">
+      <Setter Property="BorderBrush" Value="#D77E72" />
+      <Setter Property="Background" Value="#0ED77E72" />
+    </Style>
+    <Style Selector="TextBlock.log-level">
+      <Setter Property="FontFamily"
+              Value="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#8E857A" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="TextBlock.log-level.system">
+      <Setter Property="Foreground" Value="#B98261" />
+    </Style>
+    <Style Selector="TextBlock.log-level.trace, TextBlock.log-level.debug">
+      <Setter Property="Foreground" Value="#8FA8C8" />
+    </Style>
+    <Style Selector="TextBlock.log-level.info">
+      <Setter Property="Foreground" Value="#91AF95" />
+    </Style>
+    <Style Selector="TextBlock.log-level.warning">
+      <Setter Property="Foreground" Value="#D5A56F" />
+    </Style>
+    <Style Selector="TextBlock.log-level.error, TextBlock.log-level.fatal">
+      <Setter Property="Foreground" Value="#D77E72" />
+    </Style>
     <Style Selector="Separator">
       <Setter Property="Background" Value="{DynamicResource CardBorderBrush}" />
     </Style>

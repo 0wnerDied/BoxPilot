@@ -3,6 +3,8 @@ using Avalonia;
 using Avalonia.Data;
 using Avalonia.Media;
 using AvaloniaEdit;
+using BoxPilot.Core.Infrastructure;
+using BoxPilot.Core.Models;
 
 namespace BoxPilot.App.Controls;
 
@@ -15,6 +17,8 @@ public enum CodeLanguage
 public sealed class CodeEditor : TextEditor
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private readonly AnsiColorizingTransformer ansiColorizer = new();
+    private bool suppressTextChange;
 
     public static readonly StyledProperty<CodeLanguage> LanguageProperty =
         AvaloniaProperty.Register<CodeEditor, CodeLanguage>(nameof(Language));
@@ -31,7 +35,11 @@ public sealed class CodeEditor : TextEditor
     static CodeEditor()
     {
         LanguageProperty.Changed.AddClassHandler<CodeEditor>(
-            static (editor, _) => editor.ApplyLanguage());
+            static (editor, _) =>
+            {
+                editor.ApplyLanguage();
+                editor.ApplyValue(editor.Value);
+            });
         ValueProperty.Changed.AddClassHandler<CodeEditor>(
             static (editor, _) => editor.ApplyValue(editor.Value));
         PlaceholderProperty.Changed.AddClassHandler<CodeEditor>(
@@ -57,6 +65,7 @@ public sealed class CodeEditor : TextEditor
         Options.IndentationSize = 2;
         TextChanged += OnEditorTextChanged;
         ApplyLanguage();
+        TextArea.TextView.LineTransformers.Add(ansiColorizer);
     }
 
     public CodeLanguage Language
@@ -88,12 +97,32 @@ public sealed class CodeEditor : TextEditor
 
     private void ApplyValue(string value)
     {
-        if (!string.Equals(Text, value, StringComparison.Ordinal))
-            Text = value;
+        var document = Language == CodeLanguage.Console
+            ? AnsiTextParser.Parse(value)
+            : AnsiTextDocument.Plain(value);
+        ansiColorizer.Document = document;
+        if (!string.Equals(Text, document.Text, StringComparison.Ordinal))
+        {
+            suppressTextChange = true;
+            try
+            {
+                Text = document.Text;
+            }
+            finally
+            {
+                suppressTextChange = false;
+            }
+        }
+        TextArea.TextView.Redraw();
     }
 
     private void OnEditorTextChanged(object? sender, EventArgs eventArgs)
     {
+        if (suppressTextChange)
+            return;
+
+        ansiColorizer.Document = AnsiTextDocument.Plain(Text);
+        TextArea.TextView.Redraw();
         if (!string.Equals(Value, Text, StringComparison.Ordinal))
             SetCurrentValue(ValueProperty, Text);
     }

@@ -1,5 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:BoxPilot.App.Controls"
+             xmlns:models="using:BoxPilot.Core.Models"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.LogsView"
              x:DataType="vm:LogsViewModel">
@@ -30,16 +32,29 @@
                  ItemsSource="{Binding Session.Logs}"
                  Background="Transparent" BorderThickness="0"
                  FontFamily="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace"
-                 FontSize="12">
+                 FontSize="13">
           <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid ColumnDefinitions="72,88,*" ColumnSpacing="10" Margin="12,3">
-                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
-                           Foreground="#8E857A" />
-                <TextBlock Grid.Column="1" Text="{Binding Stream}" Foreground="#B98261" />
-                <TextBlock Grid.Column="2" Text="{Binding Message}"
-                           Foreground="{DynamicResource CodeForegroundBrush}" TextWrapping="Wrap" />
-              </Grid>
+            <DataTemplate x:DataType="models:CoreLogEntry">
+              <Border Classes="log-row"
+                      Classes.warning="{Binding IsWarning}"
+                      Classes.error="{Binding IsError}"
+                      Classes.fatal="{Binding IsFatal}">
+                <Grid ColumnDefinitions="72,58,*" ColumnSpacing="10" Margin="12,5">
+                  <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                             Foreground="#8E857A" />
+                  <TextBlock Grid.Column="1" Text="{Binding LevelLabel}" Classes="log-level"
+                             Classes.system="{Binding IsSystem}"
+                             Classes.trace="{Binding IsTrace}"
+                             Classes.debug="{Binding IsDebug}"
+                             Classes.info="{Binding IsInformation}"
+                             Classes.warning="{Binding IsWarning}"
+                             Classes.error="{Binding IsError}"
+                             Classes.fatal="{Binding IsFatal}" />
+                  <controls:AnsiTextBlock Grid.Column="2" Document="{Binding Content}"
+                                          Foreground="{DynamicResource CodeForegroundBrush}"
+                                          TextWrapping="Wrap" />
+                </Grid>
+              </Border>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>

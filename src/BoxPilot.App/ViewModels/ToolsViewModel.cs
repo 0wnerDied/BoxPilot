@@ -22,9 +22,9 @@ public partial class ToolsViewModel(
         try
         {
             var result = await Session.RunToolAsync(CommandText);
-            Output = string.IsNullOrWhiteSpace(result.CombinedOutput)
+            Output = string.IsNullOrWhiteSpace(result.CombinedTerminalOutput)
                 ? string.Format(localization["ProcessExited"], result.ExitCode)
-                : result.CombinedOutput;
+                : result.CombinedTerminalOutput;
         }
         catch (Exception exception)
         {
