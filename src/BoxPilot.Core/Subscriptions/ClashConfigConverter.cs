@@ -61,29 +61,14 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             tagMap[name] = tag;
         }
 
-        var automaticTag = allocator.Allocate("Auto");
-        JsonNodes.Append(outbounds, new JsonObject
+        foreach (var group in groupSources)
         {
-            ["type"] = "urltest",
-            ["tag"] = automaticTag,
-            ["outbounds"] = new JsonArray(
-                nodeTags.Select(static tag => JsonValue.Create(tag)).ToArray()),
-            ["url"] = "https://www.gstatic.com/generate_204",
-            ["interval"] = "5m",
-            ["tolerance"] = 50,
-            ["interrupt_exist_connections"] = true,
-        });
-
-        for (var index = 0; index < groupSources.Length; index++)
-        {
-            var group = groupSources[index];
             var converted = ConvertGroup(
                 group,
                 groupTags[group],
                 tagMap,
                 nodeTags,
-                warnings,
-                index == 0 ? automaticTag : null);
+                warnings);
             if (converted is not null)
                 JsonNodes.Append(outbounds, converted);
         }
@@ -95,6 +80,18 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         }
         else
         {
+            var automaticTag = allocator.Allocate("Auto");
+            JsonNodes.Append(outbounds, new JsonObject
+            {
+                ["type"] = "urltest",
+                ["tag"] = automaticTag,
+                ["outbounds"] = new JsonArray(
+                    nodeTags.Select(static tag => JsonValue.Create(tag)).ToArray()),
+                ["url"] = "https://www.gstatic.com/generate_204",
+                ["interval"] = "5m",
+                ["tolerance"] = 50,
+                ["interrupt_exist_connections"] = true,
+            });
             defaultOutbound = allocator.Allocate("Proxy");
             JsonNodes.Append(outbounds, new JsonObject
             {
@@ -130,7 +127,8 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             SubscriptionFormat.ClashYaml,
             configuration,
             nodeTags.Count,
-            warnings.Distinct(StringComparer.Ordinal).ToArray());
+            warnings.Distinct(StringComparer.Ordinal).ToArray(),
+            groupSources.Length);
     }
 
     private static JsonObject? ConvertGroup(
@@ -138,8 +136,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         string tag,
         IReadOnlyDictionary<string, string> tagMap,
         IReadOnlyList<string> nodeTags,
-        ICollection<string> warnings,
-        string? preferredDefault)
+        ICollection<string> warnings)
     {
         var type = JsonValueReader.String(source, "type")?.ToLowerInvariant() ?? "select";
         var members = JsonValueReader.Array(source, "proxies")?
@@ -185,22 +182,21 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             warnings.Add($"Unknown Clash group type '{type}' in '{tag}' was mapped to a selector.");
         }
 
-        if (!string.IsNullOrWhiteSpace(preferredDefault))
-        {
-            members = new[] { preferredDefault }
-                .Concat(members.Where(member => !string.Equals(
-                    member,
-                    preferredDefault,
-                    StringComparison.Ordinal)))
-                .ToArray();
-        }
+        var configuredDefault = JsonValueReader.String(source, "default");
+        var mappedDefault = string.IsNullOrWhiteSpace(configuredDefault)
+            ? null
+            : MapTarget(configuredDefault, tagMap);
+        var selectedDefault = mappedDefault is not null
+                              && members.Contains(mappedDefault, StringComparer.Ordinal)
+            ? mappedDefault
+            : members[0];
 
         return new JsonObject
         {
             ["type"] = "selector",
             ["tag"] = tag,
             ["outbounds"] = new JsonArray(members.Select(static member => JsonValue.Create(member)).ToArray()),
-            ["default"] = preferredDefault ?? members[0],
+            ["default"] = selectedDefault,
             ["interrupt_exist_connections"] = true,
         };
     }

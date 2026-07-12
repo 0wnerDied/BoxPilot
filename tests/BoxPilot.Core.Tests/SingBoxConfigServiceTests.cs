@@ -177,4 +177,37 @@ public sealed class SingBoxConfigServiceTests
         Assert.Equal("direct", ruleSets[0]!["download_detour"]?.ToString());
         Assert.Equal("fixed-proxy", ruleSets[1]!["download_detour"]?.ToString());
     }
+
+    [Fact]
+    public async Task PrepareManagedSubscriptionCanPreserveSourcePolicyGroups()
+    {
+        var paths = new AppPaths(Path.Combine(
+            Path.GetTempPath(),
+            $"boxpilot-tests-{Guid.NewGuid():N}"));
+        await using var core = new SingBoxService(paths);
+        var service = new SingBoxConfigService(paths, core);
+        var configuration = new JsonObject
+        {
+            ["outbounds"] = new JsonArray(
+                new JsonObject { ["type"] = "vless", ["tag"] = "Edge" },
+                new JsonObject
+                {
+                    ["type"] = "selector",
+                    ["tag"] = "Source group",
+                    ["outbounds"] = new JsonArray("Edge", "direct"),
+                    ["default"] = "Edge",
+                }),
+        };
+
+        var prepared = service.PrepareManagedSubscription(
+            configuration,
+            "subscription-test",
+            preservePolicyGroups: true);
+
+        Assert.DoesNotContain(
+            prepared["outbounds"]!.AsArray().OfType<JsonObject>(),
+            outbound => outbound["type"]?.ToString() == "urltest");
+        Assert.Equal("Edge", prepared["outbounds"]?[1]?["default"]?.ToString());
+        Assert.Equal("subscription-test", prepared["experimental"]?["cache_file"]?["cache_id"]?.ToString());
+    }
 }

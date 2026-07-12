@@ -42,7 +42,8 @@ public sealed record SubscriptionImportResult(
     SubscriptionFormat Format,
     JsonObject Configuration,
     int NodeCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    int SourcePolicyGroupCount = 0);
 
 public sealed record ProxyNode(
     string Name,

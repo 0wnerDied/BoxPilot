@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Subscriptions;
@@ -21,12 +22,14 @@ public sealed class ProfileImportService(
         ArgumentNullException.ThrowIfNull(subscriptionUrl);
         ArgumentNullException.ThrowIfNull(settings);
 
-        var fetched = await subscriptionClient.FetchAsync(
+        var download = await FetchSubscriptionAsync(
                 subscriptionUrl,
-                settings.SubscriptionUserAgent,
+                settings,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        var parsed = subscriptionParser.Parse(fetched.Content, CreateBuildOptions(settings));
+        var fetched = download.Fetch;
+        var parsed = download.Parsed
+                     ?? throw new InvalidOperationException("A new subscription returned no content.");
         var configuration = SerializeSubscription(parsed, subscriptionUrl);
         var validation = await configService.ValidateAsync(configuration, cancellationToken)
             .ConfigureAwait(false);
@@ -79,13 +82,15 @@ public sealed class ProfileImportService(
             throw new InvalidOperationException("The profile has no valid subscription URL.");
         }
 
-        var fetched = await subscriptionClient.FetchAsync(
+        var download = await FetchSubscriptionAsync(
                 subscriptionUrl,
-                settings.SubscriptionUserAgent,
+                settings,
                 profile.ETag,
                 profile.LastModified,
+                profile.SubscriptionFormat,
                 cancellationToken)
             .ConfigureAwait(false);
+        var fetched = download.Fetch;
         if (fetched.NotModified)
         {
             var unchanged = profile with
@@ -97,7 +102,8 @@ public sealed class ProfileImportService(
             return new ProfileImportOutcome(unchanged, [], fetched.Quota, true, "Not modified");
         }
 
-        var parsed = subscriptionParser.Parse(fetched.Content, CreateBuildOptions(settings));
+        var parsed = download.Parsed
+                     ?? throw new InvalidOperationException("The updated subscription returned no content.");
         var configuration = SerializeSubscription(parsed, subscriptionUrl);
         var validation = await configService.ValidateAsync(configuration, cancellationToken)
             .ConfigureAwait(false);
@@ -173,13 +179,101 @@ public sealed class ProfileImportService(
         return "subscription-" + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
     }
 
+    internal async Task<(
+        SubscriptionFetchResult Fetch,
+        SubscriptionImportResult? Parsed)> FetchSubscriptionAsync(
+        Uri subscriptionUrl,
+        AppSettings settings,
+        string? etag = null,
+        DateTimeOffset? lastModified = null,
+        string? previousFormat = null,
+        CancellationToken cancellationToken = default)
+    {
+        var clashUrl = CreateClashVariantUri(subscriptionUrl);
+        if (clashUrl != subscriptionUrl)
+        {
+            var refreshRepresentation = string.Equals(
+                previousFormat,
+                nameof(SubscriptionFormat.SingBoxJson),
+                StringComparison.Ordinal);
+            try
+            {
+                return await FetchAndParseAsync(
+                        clashUrl,
+                        settings,
+                        refreshRepresentation ? null : etag,
+                        refreshRepresentation ? null : lastModified,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception) when (IsAlternativeRepresentationFailure(exception))
+            {
+                // Providers are not required to understand Clash format hints.
+            }
+        }
+
+        return await FetchAndParseAsync(
+                subscriptionUrl,
+                settings,
+                etag,
+                lastModified,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<(
+        SubscriptionFetchResult Fetch,
+        SubscriptionImportResult? Parsed)> FetchAndParseAsync(
+        Uri subscriptionUrl,
+        AppSettings settings,
+        string? etag,
+        DateTimeOffset? lastModified,
+        CancellationToken cancellationToken)
+    {
+        var fetched = await subscriptionClient.FetchAsync(
+                subscriptionUrl,
+                settings.SubscriptionUserAgent,
+                etag,
+                lastModified,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var parsed = fetched.NotModified
+            ? null
+            : subscriptionParser.Parse(fetched.Content, CreateBuildOptions(settings));
+        return (fetched, parsed);
+    }
+
+    private static Uri CreateClashVariantUri(Uri subscriptionUrl)
+    {
+        var builder = new UriBuilder(subscriptionUrl);
+        var query = builder.Query.TrimStart('?');
+        var hasExplicitFormat = query
+            .Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static field => field.Split('=', 2)[0])
+            .Any(static key => key.Equals("target", StringComparison.OrdinalIgnoreCase)
+                               || key.Equals("format", StringComparison.OrdinalIgnoreCase));
+        if (hasExplicitFormat)
+            return subscriptionUrl;
+
+        builder.Query = string.IsNullOrEmpty(query)
+            ? "target=clash&format=clash"
+            : $"{query}&target=clash&format=clash";
+        return builder.Uri;
+    }
+
+    private static bool IsAlternativeRepresentationFailure(Exception exception)
+    {
+        return exception is HttpRequestException or InvalidDataException or DecoderFallbackException;
+    }
+
     private string SerializeSubscription(SubscriptionImportResult parsed, Uri subscriptionUrl)
     {
         var configuration = parsed.Format == SubscriptionFormat.SingBoxJson
             ? parsed.Configuration
             : configService.PrepareManagedSubscription(
                 parsed.Configuration,
-                CreateCacheId(subscriptionUrl));
+                CreateCacheId(subscriptionUrl),
+                parsed.SourcePolicyGroupCount > 0);
         return configService.Serialize(configuration);
     }
 }

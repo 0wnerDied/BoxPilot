@@ -44,13 +44,17 @@ public sealed class SingBoxConfigService(
         return Serialize(Parse(configuration));
     }
 
-    public JsonObject PrepareManagedSubscription(JsonObject configuration, string cacheId)
+    public JsonObject PrepareManagedSubscription(
+        JsonObject configuration,
+        string cacheId,
+        bool preservePolicyGroups = false)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheId);
 
         var prepared = configuration.DeepClone().AsObject();
-        ManagedSubscriptionDefaults.Apply(prepared);
+        if (!preservePolicyGroups)
+            ManagedSubscriptionDefaults.Apply(prepared);
         var experimental = EnsureObject(prepared, "experimental");
         var cache = EnsureObject(experimental, "cache_file");
         cache["enabled"] = true;
