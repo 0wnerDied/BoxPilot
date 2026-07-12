@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxPilot.Core.Tests", "test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxPilot.App.Tests", "tests\BoxPilot.App.Tests\BoxPilot.App.Tests.csproj", "{C8743094-460C-4C42-A35B-12C927DB4755}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxPilot.Packaging.Tests", "tests\BoxPilot.Packaging.Tests\BoxPilot.Packaging.Tests.csproj", "{66D53E22-1B38-4735-8368-1DD617B0E96F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{C8743094-460C-4C42-A35B-12C927DB4755}.Release|x64.Build.0 = Release|Any CPU
 		{C8743094-460C-4C42-A35B-12C927DB4755}.Release|x86.ActiveCfg = Release|Any CPU
 		{C8743094-460C-4C42-A35B-12C927DB4755}.Release|x86.Build.0 = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|x64.Build.0 = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Debug|x86.Build.0 = Debug|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|x64.ActiveCfg = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|x64.Build.0 = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|x86.ActiveCfg = Release|Any CPU
+		{66D53E22-1B38-4735-8368-1DD617B0E96F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{C4067E13-AFAC-49A4-BB96-23B9387223CB} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{AF292087-DBFE-44E3-A912-411992C48661} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C8743094-460C-4C42-A35B-12C927DB4755} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{66D53E22-1B38-4735-8368-1DD617B0E96F} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
