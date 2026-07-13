@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using Avalonia.Threading;
 using BoxPilot.App.Services;
 using BoxPilot.Core.Models;
@@ -31,9 +30,6 @@ public partial class DashboardViewModel(
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial bool SortByUtf8 { get; set; }
 
     public bool HasProxyGroups => ProxyGroups.Count > 0;
 
@@ -168,11 +164,6 @@ public partial class DashboardViewModel(
         RebuildVisibleNodes();
     }
 
-    partial void OnSortByUtf8Changed(bool value)
-    {
-        RebuildVisibleNodes();
-    }
-
     private async Task SelectNodeAsync(ProxyNodeItemViewModel node)
     {
         if (!Session.IsCoreRunning || isSwitchingNode || node.IsSelected || !node.CanSelect)
@@ -264,9 +255,6 @@ public partial class DashboardViewModel(
                 StringComparison.OrdinalIgnoreCase));
         }
 
-        if (SortByUtf8)
-            nodes = nodes.OrderBy(static node => node.Name, Utf8OrdinalComparer.Instance);
-
         VisibleNodes.Clear();
         foreach (var node in nodes)
             VisibleNodes.Add(node);
@@ -340,33 +328,4 @@ public partial class DashboardViewModel(
         OnPropertyChanged(nameof(NodeCountDisplay));
     }
 
-    private sealed class Utf8OrdinalComparer : IComparer<string>
-    {
-        public static Utf8OrdinalComparer Instance { get; } = new();
-
-        public int Compare(string? left, string? right)
-        {
-            if (ReferenceEquals(left, right))
-                return 0;
-            if (left is null)
-                return -1;
-            if (right is null)
-                return 1;
-
-            // UTF-8 preserves scalar order, so rune comparison avoids encoded byte allocations.
-            var leftRunes = left.EnumerateRunes().GetEnumerator();
-            var rightRunes = right.EnumerateRunes().GetEnumerator();
-            while (true)
-            {
-                var hasLeft = leftRunes.MoveNext();
-                var hasRight = rightRunes.MoveNext();
-                if (!hasLeft || !hasRight)
-                    return hasLeft.CompareTo(hasRight);
-
-                var comparison = leftRunes.Current.Value.CompareTo(rightRunes.Current.Value);
-                if (comparison != 0)
-                    return comparison;
-            }
-        }
-    }
 }
