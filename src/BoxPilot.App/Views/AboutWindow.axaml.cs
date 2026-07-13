@@ -9,7 +9,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         VersionValue.Text = typeof(AboutWindow).Assembly.GetName().Version?.ToString(3)
-            ?? "0.1.0";
+            ?? "1.0.0";
     }
 
     private void CloseClick(object? sender, RoutedEventArgs eventArgs)
