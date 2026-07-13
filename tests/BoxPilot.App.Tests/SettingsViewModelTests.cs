@@ -1,8 +1,6 @@
 using BoxPilot.App.Services;
 using BoxPilot.App.ViewModels;
 using BoxPilot.Core.Infrastructure;
-using BoxPilot.Core.Services;
-using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.App.Tests;
 
@@ -12,33 +10,8 @@ public sealed class SettingsViewModelTests
     public async Task SaveAllowsClearedOptionalTextFieldsWhenEnablingTun()
     {
         using var directory = new TemporaryDirectory();
-        var paths = new AppPaths(directory.Path);
-        var settingsStore = new SettingsStore(paths);
-        var profileRepository = new ProfileRepository(paths);
-        await using var singBox = new SingBoxService(paths);
-        var config = new SingBoxConfigService(paths, singBox);
-        var customRouting = new CustomRoutingService(paths, config);
-        var configurationFiles = new ConfigurationFileService(config, profileRepository);
-        using var subscriptionClient = new SubscriptionClient();
-        var parser = new SubscriptionParser(config);
-        var importer = new ProfileImportService(
-            subscriptionClient,
-            parser,
-            config,
-            profileRepository,
-            customRouting);
-        var localization = new LocalizationService();
-        await using var session = new AppSessionViewModel(
-            paths,
-            settingsStore,
-            profileRepository,
-            singBox,
-            config,
-            importer,
-            customRouting,
-            configurationFiles,
-            localization);
-        var viewModel = new SettingsViewModel(session, localization)
+        await using var runtime = new AppRuntime(new AppPaths(directory.Path));
+        var viewModel = new SettingsViewModel(runtime.Session, runtime.Localization)
         {
             CorePath = null,
             CustomDnsServer = null,
@@ -47,9 +20,9 @@ public sealed class SettingsViewModelTests
 
         await viewModel.SaveCommand.ExecuteAsync(null);
 
-        Assert.True(session.Settings.EnableTun);
-        Assert.Equal(string.Empty, session.Settings.SingBoxPath);
-        Assert.Equal(string.Empty, session.Settings.CustomDnsServer);
+        Assert.True(runtime.Session.Settings.EnableTun);
+        Assert.Equal(string.Empty, runtime.Session.Settings.SingBoxPath);
+        Assert.Equal(string.Empty, runtime.Session.Settings.CustomDnsServer);
     }
 
     private sealed class TemporaryDirectory : IDisposable

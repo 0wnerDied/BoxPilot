@@ -1,13 +1,12 @@
 using System.Net;
 using System.Text;
-using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class ProfileImportServiceTests : IAsyncLifetime
+public sealed class ProfileImportServiceTests : SingBoxTestBase
 {
     private const string ClashSubscription = """
         proxies:
@@ -31,19 +30,13 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         }
         """;
 
-    private readonly TemporaryDirectory directory = new();
-    private readonly SingBoxService core;
-    private readonly SingBoxConfigService config;
     private readonly ProfileRepository repository;
     private readonly CustomRoutingService customRouting;
 
     public ProfileImportServiceTests()
     {
-        var paths = new AppPaths(directory.Path);
-        core = new SingBoxService(paths);
-        config = new SingBoxConfigService(paths, core);
-        repository = new ProfileRepository(paths);
-        customRouting = new CustomRoutingService(paths, config);
+        repository = new ProfileRepository(Paths);
+        customRouting = new CustomRoutingService(Paths, Config);
     }
 
     [Fact]
@@ -157,7 +150,7 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
             "Provider",
             new Uri("https://example.test/sub/clash"),
             new AppSettings());
-        var sourcePath = Path.Combine(directory.Path, "private.json");
+        var sourcePath = Path.Combine(TestRoot, "private.json");
         await File.WriteAllTextAsync(sourcePath, """{ "version": 3, "rules": [] }""");
         var configuration = await repository.ReadConfigurationAsync(imported.Profile);
         var change = await customRouting.ImportAsync(
@@ -188,15 +181,15 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
             new AppSettings());
         var initialConfiguration = await repository.ReadConfigurationAsync(imported.Profile);
 
-        Assert.False(config.SupportsStandardRoutingModes(initialConfiguration));
-        Assert.True(config.CanAddStandardRoutingModes(initialConfiguration));
+        Assert.False(Config.SupportsStandardRoutingModes(initialConfiguration));
+        Assert.True(Config.CanAddStandardRoutingModes(initialConfiguration));
 
         var optedOut = imported.Profile with { ManageStandardRoutingModes = false };
         await repository.UpdateAsync(optedOut);
         var unchanged = await service.UpdateSubscriptionAsync(optedOut, new AppSettings());
         var unchangedConfiguration = await repository.ReadConfigurationAsync(unchanged.Profile);
 
-        Assert.False(config.SupportsStandardRoutingModes(unchangedConfiguration));
+        Assert.False(Config.SupportsStandardRoutingModes(unchangedConfiguration));
         Assert.False(unchanged.Profile.ManageStandardRoutingModes);
 
         var optedIn = unchanged.Profile with { ManageStandardRoutingModes = true };
@@ -204,11 +197,11 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         var updated = await service.UpdateSubscriptionAsync(optedIn, new AppSettings());
         var updatedConfiguration = await repository.ReadConfigurationAsync(updated.Profile);
 
-        Assert.True(config.SupportsStandardRoutingModes(updatedConfiguration));
-        var parsed = config.Parse(updatedConfiguration);
+        Assert.True(Config.SupportsStandardRoutingModes(updatedConfiguration));
+        var parsed = Config.Parse(updatedConfiguration);
         Assert.Equal(
             SingBoxConfigService.ManagedGlobalSelectorTag,
-            config.GetGlobalProxyGroup(parsed));
+            Config.GetGlobalProxyGroup(parsed));
         Assert.True(updated.Profile.ManageStandardRoutingModes);
     }
 
@@ -241,25 +234,17 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
             new AppSettings());
         var configuration = await repository.ReadConfigurationAsync(imported.Profile);
 
-        Assert.True(config.SupportsStandardRoutingModes(configuration));
-        Assert.False(config.CanAddStandardRoutingModes(configuration));
+        Assert.True(Config.SupportsStandardRoutingModes(configuration));
+        Assert.False(Config.CanAddStandardRoutingModes(configuration));
         Assert.Null(imported.Profile.ManageStandardRoutingModes);
-    }
-
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
-    {
-        await core.DisposeAsync();
-        directory.Dispose();
     }
 
     private ProfileImportService CreateService(SubscriptionClient subscriptionClient)
     {
         return new ProfileImportService(
             subscriptionClient,
-            new SubscriptionParser(config),
-            config,
+            new SubscriptionParser(Config),
+            Config,
             repository,
             customRouting);
     }

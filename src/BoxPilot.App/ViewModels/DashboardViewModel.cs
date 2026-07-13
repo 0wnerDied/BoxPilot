@@ -87,7 +87,7 @@ public partial class DashboardViewModel(
         isRefreshingProxies = true;
         try
         {
-            using var client = CreateApiClient();
+            using var client = Session.CreateClashApiClient();
             var choices = await LoadProxyChoicesAsync(client);
             allProxyChoices = choices;
             RebuildProxyGroups(previousGroup);
@@ -117,7 +117,7 @@ public partial class DashboardViewModel(
             node.IsTesting = true;
 
         var succeeded = 0;
-        using var client = CreateApiClient();
+        using var client = Session.CreateClashApiClient();
         using var gate = new SemaphoreSlim(DelayTestConcurrency, DelayTestConcurrency);
         try
         {
@@ -189,7 +189,7 @@ public partial class DashboardViewModel(
         node.IsApplying = true;
         try
         {
-            using var client = CreateApiClient();
+            using var client = Session.CreateClashApiClient();
             await client.SelectProxyAsync(group.Name, node.Name);
             group.Select(node.Name);
             allProxyChoices = allProxyChoices
@@ -220,7 +220,7 @@ public partial class DashboardViewModel(
         node.IsTesting = true;
         try
         {
-            using var client = CreateApiClient();
+            using var client = Session.CreateClashApiClient();
             node.Delay = await client.TestDelayAsync(
                     node.Name,
                     timeoutMilliseconds: DelayTestTimeoutMilliseconds)
@@ -235,11 +235,6 @@ public partial class DashboardViewModel(
         {
             node.IsTesting = false;
         }
-    }
-
-    private ClashApiClient CreateApiClient()
-    {
-        return Session.CreateClashApiClient();
     }
 
     private static async Task<IReadOnlyList<ProxyChoice>> LoadProxyChoicesAsync(

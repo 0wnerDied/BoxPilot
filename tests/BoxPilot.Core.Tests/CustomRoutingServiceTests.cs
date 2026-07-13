@@ -1,24 +1,16 @@
 using System.Text.Json.Nodes;
-using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class CustomRoutingServiceTests : IAsyncLifetime
+public sealed class CustomRoutingServiceTests : SingBoxTestBase
 {
-    private readonly TemporaryDirectory directory = new();
-    private readonly AppPaths paths;
-    private readonly SingBoxService core;
-    private readonly SingBoxConfigService config;
     private readonly CustomRoutingService routing;
 
     public CustomRoutingServiceTests()
     {
-        paths = new AppPaths(directory.Path);
-        core = new SingBoxService(paths);
-        config = new SingBoxConfigService(paths, core);
-        routing = new CustomRoutingService(paths, config);
+        routing = new CustomRoutingService(Paths, Config);
     }
 
     [Fact]
@@ -27,12 +19,12 @@ public sealed class CustomRoutingServiceTests : IAsyncLifetime
         var profileId = Guid.NewGuid();
         var localId = Guid.NewGuid();
         var localFile = $"{localId:N}.json";
-        Directory.CreateDirectory(paths.GetRuleSetDirectory(profileId));
+        Directory.CreateDirectory(Paths.GetRuleSetDirectory(profileId));
         await File.WriteAllTextAsync(
-            Path.Combine(paths.GetRuleSetDirectory(profileId), localFile),
+            Path.Combine(Paths.GetRuleSetDirectory(profileId), localFile),
             """{ "version": 3, "rules": [] }""");
-        var configuration = config.AddStandardRoutingModes(
-            config.ApplyRuntimeOptions(CreateConfiguration(), new AppSettings()));
+        var configuration = Config.AddStandardRoutingModes(
+            Config.ApplyRuntimeOptions(CreateConfiguration(), new AppSettings()));
         var ruleSets = new CustomRuleSet[]
         {
             new()
@@ -99,14 +91,6 @@ public sealed class CustomRoutingServiceTests : IAsyncLifetime
         var result = routing.Apply(configuration, []);
 
         Assert.True(JsonNode.DeepEquals(configuration, result));
-    }
-
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
-    {
-        await core.DisposeAsync();
-        directory.Dispose();
     }
 
     private static JsonObject CreateConfiguration()

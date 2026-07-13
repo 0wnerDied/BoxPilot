@@ -1,22 +1,16 @@
 using System.Text;
-using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
-using BoxPilot.Core.Services;
 using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class SubscriptionParserTests : IAsyncLifetime
+public sealed class SubscriptionParserTests : SingBoxTestBase
 {
-    private readonly TemporaryDirectory directory = new();
-    private readonly SingBoxService core;
     private readonly SubscriptionParser parser;
 
     public SubscriptionParserTests()
     {
-        var paths = new AppPaths(directory.Path);
-        core = new SingBoxService(paths);
-        parser = new SubscriptionParser(new SingBoxConfigService(paths, core));
+        parser = new SubscriptionParser(Config);
     }
 
     [Fact]
@@ -265,13 +259,5 @@ public sealed class SubscriptionParserTests : IAsyncLifetime
             ClashApiSecret = "test-secret",
             EnableSystemProxy = false,
         };
-    }
-
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
-    {
-        await core.DisposeAsync();
-        directory.Dispose();
     }
 }

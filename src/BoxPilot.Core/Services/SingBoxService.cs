@@ -117,13 +117,6 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
     public Task<CommandResult> CheckAsync(
         string configurationPath,
-        CancellationToken cancellationToken = default)
-    {
-        return CheckAsync(configurationPath, null, cancellationToken);
-    }
-
-    public Task<CommandResult> CheckAsync(
-        string configurationPath,
         string? workingDirectory,
         CancellationToken cancellationToken = default)
     {
@@ -133,13 +126,6 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             TimeSpan.FromSeconds(30),
             cancellationToken,
             workingDirectory);
-    }
-
-    public Task<CommandResult> RunToolAsync(
-        string commandLine,
-        CancellationToken cancellationToken = default)
-    {
-        return RunToolAsync(commandLine, null, cancellationToken);
     }
 
     public Task<CommandResult> RunToolAsync(
@@ -182,13 +168,6 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             TimeSpan.FromSeconds(30),
             cancellationToken,
             workingDirectory);
-    }
-
-    public async Task StartAsync(
-        string configurationPath,
-        CancellationToken cancellationToken = default)
-    {
-        await StartAsync(configurationPath, null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task StartAsync(
@@ -357,13 +336,6 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         {
             lifecycleGate.Release();
         }
-    }
-
-    public async Task RestartAsync(
-        string configurationPath,
-        CancellationToken cancellationToken = default)
-    {
-        await RestartAsync(configurationPath, null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RestartAsync(

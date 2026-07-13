@@ -37,11 +37,11 @@ public sealed class CustomRoutingService(
 
         return outbounds
             .OfType<JsonObject>()
-            .Select(static outbound => new RoutingOutbound(
-                outbound["tag"]?.ToString() ?? string.Empty,
+            .Where(static outbound => IsRoutingTarget(
                 outbound["type"]?.ToString() ?? string.Empty))
-            .Where(static outbound => !string.IsNullOrWhiteSpace(outbound.Tag)
-                                      && IsRoutingTarget(outbound.Type))
+            .Select(static outbound => new RoutingOutbound(
+                outbound["tag"]?.ToString() ?? string.Empty))
+            .Where(static outbound => !string.IsNullOrWhiteSpace(outbound.Tag))
             .DistinctBy(static outbound => outbound.Tag, StringComparer.Ordinal)
             .ToArray();
     }
@@ -117,14 +117,7 @@ public sealed class CustomRoutingService(
             await CopyAtomicallyAsync(source.FullName, destinationPath, cancellationToken)
                 .ConfigureAwait(false);
 
-            var index = await LoadAsync(cancellationToken).ConfigureAwait(false);
-            index.RuleSets.Add(ruleSet);
-            var updated = configService.Serialize(Apply(
-                parsed,
-                index.RuleSets.Where(item => item.ProfileId == profile.Id)));
-            await ValidateAsync(updated, cancellationToken).ConfigureAwait(false);
-            await SaveAsync(index, cancellationToken).ConfigureAwait(false);
-            return new CustomRuleSetChange(ruleSet, updated);
+            return await AddRuleSetAsync(parsed, ruleSet, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -175,14 +168,7 @@ public sealed class CustomRoutingService(
                 Format = format,
                 Source = RuleSetSource.Remote,
             };
-            var index = await LoadAsync(cancellationToken).ConfigureAwait(false);
-            index.RuleSets.Add(ruleSet);
-            var updated = configService.Serialize(Apply(
-                parsed,
-                index.RuleSets.Where(item => item.ProfileId == profile.Id)));
-            await ValidateAsync(updated, cancellationToken).ConfigureAwait(false);
-            await SaveAsync(index, cancellationToken).ConfigureAwait(false);
-            return new CustomRuleSetChange(ruleSet, updated);
+            return await AddRuleSetAsync(parsed, ruleSet, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -211,7 +197,8 @@ public sealed class CustomRoutingService(
             var updated = configService.Serialize(Apply(
                 configService.Parse(configuration),
                 index.RuleSets.Where(item => item.ProfileId == profile.Id)));
-            await ValidateAsync(updated, cancellationToken).ConfigureAwait(false);
+            await configService.ValidateOrThrowAsync(updated, null, cancellationToken)
+                .ConfigureAwait(false);
             await SaveAsync(index, cancellationToken).ConfigureAwait(false);
 
             if (ruleSet.Source == RuleSetSource.Local)
@@ -264,9 +251,9 @@ public sealed class CustomRoutingService(
         if (activeRuleSets.Length == 0)
             return clone;
 
-        var route = EnsureObject(clone, "route");
-        var rules = EnsureArray(route, "rules");
-        var definitions = EnsureArray(route, "rule_set");
+        var route = JsonNodes.EnsureObject(clone, "route");
+        var rules = JsonNodes.EnsureArray(route, "rules");
+        var definitions = JsonNodes.EnsureArray(route, "rule_set");
         var targets = GetOutboundTags(clone);
         var insertionIndex = FindRuleInsertionIndex(rules);
         foreach (var ruleSet in activeRuleSets)
@@ -420,12 +407,20 @@ public sealed class CustomRoutingService(
         return AtomicFile.WriteAllTextAsync(paths.CustomRoutingFile, json, cancellationToken);
     }
 
-    private async Task ValidateAsync(string configuration, CancellationToken cancellationToken)
+    private async Task<CustomRuleSetChange> AddRuleSetAsync(
+        JsonObject configuration,
+        CustomRuleSet ruleSet,
+        CancellationToken cancellationToken)
     {
-        var validation = await configService.ValidateAsync(configuration, cancellationToken)
+        var index = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        index.RuleSets.Add(ruleSet);
+        var updated = configService.Serialize(Apply(
+            configuration,
+            index.RuleSets.Where(item => item.ProfileId == ruleSet.ProfileId)));
+        await configService.ValidateOrThrowAsync(updated, null, cancellationToken)
             .ConfigureAwait(false);
-        if (!validation.IsSuccess)
-            throw new InvalidDataException(validation.CombinedOutput);
+        await SaveAsync(index, cancellationToken).ConfigureAwait(false);
+        return new CustomRuleSetChange(ruleSet, updated);
     }
 
     private static async Task ValidateSourceRuleSetAsync(
@@ -491,23 +486,5 @@ public sealed class CustomRoutingService(
     private static bool IsManagedTag(string? tag)
     {
         return tag?.StartsWith(ManagedTagPrefix, StringComparison.Ordinal) == true;
-    }
-
-    private static JsonArray EnsureArray(JsonObject parent, string propertyName)
-    {
-        if (parent[propertyName] is JsonArray value)
-            return value;
-        value = [];
-        parent[propertyName] = value;
-        return value;
-    }
-
-    private static JsonObject EnsureObject(JsonObject parent, string propertyName)
-    {
-        if (parent[propertyName] is JsonObject value)
-            return value;
-        value = [];
-        parent[propertyName] = value;
-        return value;
     }
 }

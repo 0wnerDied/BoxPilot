@@ -272,17 +272,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var profile = SelectedProfile
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
-            StopTrafficMonitor();
-            await singBox.RestartAsync(
-                paths.GetProfileConfigPath(profile),
-                profile.WorkingDirectory,
-                cancellationToken);
-            if (HasClashApi)
-            {
-                if (supportsStandardRoutingModes)
-                    await ApplyRoutingModeToCoreAsync(cancellationToken);
-                StartTrafficMonitor();
-            }
+            await RestartCoreForProfileAsync(profile, cancellationToken);
         });
     }
 
@@ -389,12 +379,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var configuration = configService.Serialize(
                 configService.EnsureManagedStandardRoutingModes(
                     configService.Parse(ConfigurationText)));
-            var validation = await configService.ValidateAsync(
+            await configService.ValidateOrThrowAsync(
                 configuration,
                 profile.WorkingDirectory,
                 cancellationToken);
-            if (!validation.IsSuccess)
-                throw new InvalidDataException(validation.CombinedOutput);
 
             await profileRepository.WriteConfigurationAsync(
                 profile,
@@ -528,12 +516,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                     ConfigurationText,
                     updated,
                     cancellationToken);
-                var validation = await configService.ValidateAsync(
+                await configService.ValidateOrThrowAsync(
                     updatedConfiguration,
                     selectedProfile.WorkingDirectory,
                     cancellationToken);
-                if (!validation.IsSuccess)
-                    throw new InvalidDataException(validation.CombinedOutput);
             }
 
             if (restart)
@@ -577,11 +563,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         return RunBusyAsync(async () =>
         {
-            var profile = SelectedProfile
-                ?? throw new InvalidOperationException(localization["NoProfile"]);
-            if (IsConfigurationDirty)
-                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
-
+            var profile = GetRuleSetProfile();
             var restart = IsCoreRunning;
             var change = await customRoutingService.ImportAsync(
                 profile,
@@ -589,16 +571,12 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 outbound,
                 ConfigurationText,
                 cancellationToken);
-            await profileRepository.WriteConfigurationAsync(
+            await ApplyRuleSetConfigurationAsync(
                 profile,
                 change.Configuration,
+                restart,
+                "RuleSetImported",
                 cancellationToken);
-            SetConfigurationText(change.Configuration, false);
-            configurationDrafts.MarkSaved(profile.Id);
-            await ReloadCustomRoutingAsync(profile, cancellationToken);
-            if (restart)
-                await RestartCoreForProfileAsync(profile, cancellationToken);
-            Toast.Show(localization["RuleSetImported"], ToastLevel.Success);
         });
     }
 
@@ -609,24 +587,19 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(ruleSet);
         return RunBusyAsync(async () =>
         {
-            var profile = SelectedProfile
-                ?? throw new InvalidOperationException(localization["NoProfile"]);
-            if (IsConfigurationDirty)
-                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
-
+            var profile = GetRuleSetProfile();
             var restart = IsCoreRunning;
             var configuration = await customRoutingService.RemoveAsync(
                 profile,
                 ruleSet.Id,
                 ConfigurationText,
                 cancellationToken);
-            await profileRepository.WriteConfigurationAsync(profile, configuration, cancellationToken);
-            SetConfigurationText(configuration, false);
-            configurationDrafts.MarkSaved(profile.Id);
-            await ReloadCustomRoutingAsync(profile, cancellationToken);
-            if (restart)
-                await RestartCoreForProfileAsync(profile, cancellationToken);
-            Toast.Show(localization["RuleSetRemoved"], ToastLevel.Success);
+            await ApplyRuleSetConfigurationAsync(
+                profile,
+                configuration,
+                restart,
+                "RuleSetRemoved",
+                cancellationToken);
         });
     }
 
@@ -637,11 +610,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         return RunBusyAsync(async () =>
         {
-            var profile = SelectedProfile
-                ?? throw new InvalidOperationException(localization["NoProfile"]);
-            if (IsConfigurationDirty)
-                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
-
+            var profile = GetRuleSetProfile();
             var restart = IsCoreRunning;
             var change = await customRoutingService.AddRemoteAsync(
                 profile,
@@ -649,16 +618,12 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 outbound,
                 ConfigurationText,
                 cancellationToken);
-            await profileRepository.WriteConfigurationAsync(
+            await ApplyRuleSetConfigurationAsync(
                 profile,
                 change.Configuration,
+                restart,
+                "RuleSetImported",
                 cancellationToken);
-            SetConfigurationText(change.Configuration, false);
-            configurationDrafts.MarkSaved(profile.Id);
-            await ReloadCustomRoutingAsync(profile, cancellationToken);
-            if (restart)
-                await RestartCoreForProfileAsync(profile, cancellationToken);
-            Toast.Show(localization["RuleSetImported"], ToastLevel.Success);
         });
     }
 
@@ -683,12 +648,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                     ConfigurationText,
                     updatedSettings,
                     cancellationToken);
-                var validation = await configService.ValidateAsync(
+                await configService.ValidateOrThrowAsync(
                     updatedConfiguration,
                     profile.WorkingDirectory,
                     cancellationToken);
-                if (!validation.IsSuccess)
-                    throw new InvalidDataException(validation.CombinedOutput);
                 await profileRepository.WriteConfigurationAsync(
                     profile,
                     updatedConfiguration,
@@ -847,17 +810,40 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             ConfigurationText,
             Settings,
             cancellationToken);
-        var validation = await configService.ValidateAsync(
+        await configService.ValidateOrThrowAsync(
             formatted,
             profile.WorkingDirectory,
             cancellationToken);
-        if (!validation.IsSuccess)
-            throw new InvalidDataException(validation.CombinedOutput);
 
         await profileRepository.WriteConfigurationAsync(profile, formatted, cancellationToken);
         await profileRepository.UpdateAsync(profile, cancellationToken);
         SetConfigurationText(formatted, false);
         configurationDrafts.MarkSaved(profile.Id);
+    }
+
+    private async Task ApplyRuleSetConfigurationAsync(
+        Profile profile,
+        string configuration,
+        bool restart,
+        string successMessageKey,
+        CancellationToken cancellationToken)
+    {
+        await profileRepository.WriteConfigurationAsync(profile, configuration, cancellationToken);
+        SetConfigurationText(configuration, false);
+        configurationDrafts.MarkSaved(profile.Id);
+        await ReloadCustomRoutingAsync(profile, cancellationToken);
+        if (restart)
+            await RestartCoreForProfileAsync(profile, cancellationToken);
+        Toast.Show(localization[successMessageKey], ToastLevel.Success);
+    }
+
+    private Profile GetRuleSetProfile()
+    {
+        var profile = SelectedProfile
+            ?? throw new InvalidOperationException(localization["NoProfile"]);
+        if (IsConfigurationDirty)
+            throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
+        return profile;
     }
 
     private async Task ReloadProfilesAsync(CancellationToken cancellationToken)

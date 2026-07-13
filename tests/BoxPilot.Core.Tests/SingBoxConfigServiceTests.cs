@@ -1,23 +1,11 @@
 using System.Text.Json.Nodes;
-using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class SingBoxConfigServiceTests : IAsyncLifetime
+public sealed class SingBoxConfigServiceTests : SingBoxTestBase
 {
-    private readonly TemporaryDirectory directory = new();
-    private readonly SingBoxService core;
-    private readonly SingBoxConfigService service;
-
-    public SingBoxConfigServiceTests()
-    {
-        var paths = new AppPaths(directory.Path);
-        core = new SingBoxService(paths);
-        service = new SingBoxConfigService(paths, core);
-    }
-
     [Fact]
     public void SerializeAndFormatPreserveUnicodeText()
     {
@@ -26,8 +14,8 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             ["tag"] = "IPv6 日本 A01 移动宽带优化",
         };
 
-        var json = service.Serialize(configuration);
-        var formatted = service.FormatJson("""
+        var json = Config.Serialize(configuration);
+        var formatted = Config.FormatJson("""
             { "tag": "IPv6 \u65E5\u672C A01 \u79FB\u52A8\u5BBD\u5E26\u4F18\u5316" }
             """);
 
@@ -54,8 +42,8 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
                 }),
         };
 
-        var prepared = service.PrepareManagedSubscription(configuration, "subscription-test");
-        var preparedAgain = service.PrepareManagedSubscription(prepared, "subscription-test");
+        var prepared = Config.PrepareManagedSubscription(configuration, "subscription-test");
+        var preparedAgain = Config.PrepareManagedSubscription(prepared, "subscription-test");
 
         var outbounds = prepared["outbounds"]!.AsArray();
         var automatic = outbounds.OfType<JsonObject>()
@@ -82,7 +70,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
                 new JsonObject { ["type"] = "mixed", ["tag"] = "mixed-in" }),
         };
 
-        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings
         {
             EnableTun = false,
         });
@@ -110,7 +98,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             ["inbounds"] = new JsonArray(importedTun),
         };
 
-        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings
         {
             EnableTun = true,
         });
@@ -157,7 +145,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             },
         };
 
-        var result = service.ApplyRuntimeOptions(configuration, new AppSettings());
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings());
         var ruleSets = result["route"]!["rule_set"]!.AsArray();
 
         Assert.Equal("direct", ruleSets[0]!["download_detour"]?.ToString());
@@ -180,7 +168,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
                 }),
         };
 
-        var prepared = service.PrepareManagedSubscription(
+        var prepared = Config.PrepareManagedSubscription(
             configuration,
             "subscription-test",
             preservePolicyGroups: true);
@@ -220,16 +208,16 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             },
         };
 
-        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings
         {
             AllowLan = true,
             CustomDnsServer = "https://1.1.1.1/dns-query",
             RoutingMode = "Global",
         });
-        Assert.False(service.SupportsStandardRoutingModes(result));
-        Assert.True(service.CanAddStandardRoutingModes(service.Serialize(result)));
+        Assert.False(Config.SupportsStandardRoutingModes(result));
+        Assert.True(Config.CanAddStandardRoutingModes(Config.Serialize(result)));
 
-        result = service.AddStandardRoutingModes(result);
+        result = Config.AddStandardRoutingModes(result);
 
         var mixed = result["inbounds"]!.AsArray().OfType<JsonObject>()
             .Single(inbound => inbound["type"]?.ToString() == "mixed");
@@ -255,7 +243,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             outbound => outbound["type"]?.ToString() == "direct");
         Assert.Equal("https", result["dns"]?["servers"]?[0]?["type"]?.ToString());
         Assert.Equal("/dns-query", result["dns"]?["servers"]?[0]?["path"]?.ToString());
-        var validation = await service.ValidateAsync(service.Serialize(result));
+        var validation = await Config.ValidateAsync(Config.Serialize(result));
         Assert.True(validation.IsSuccess, validation.CombinedOutput);
     }
 
@@ -300,8 +288,8 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             },
         };
 
-        var result = service.EnsureManagedStandardRoutingModes(configuration);
-        result = service.EnsureManagedStandardRoutingModes(result);
+        var result = Config.EnsureManagedStandardRoutingModes(configuration);
+        result = Config.EnsureManagedStandardRoutingModes(result);
 
         var outbounds = result["outbounds"]!.AsArray().OfType<JsonObject>().ToArray();
         var managed = Assert.Single(outbounds, outbound =>
@@ -314,7 +302,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             SingBoxConfigService.ManagedGlobalSelectorTag,
             result["route"]!["rules"]![0]!["outbound"]?.ToString());
         Assert.Equal("Provider", result["route"]!["final"]?.ToString());
-        Assert.Equal(SingBoxConfigService.ManagedGlobalSelectorTag, service.GetGlobalProxyGroup(result));
+        Assert.Equal(SingBoxConfigService.ManagedGlobalSelectorTag, Config.GetGlobalProxyGroup(result));
         Assert.Equal(
             ["Automatic", "Edge A", "Edge B"],
             outbounds.Single(outbound => outbound["tag"]?.ToString() == "Provider")["outbounds"]!
@@ -350,9 +338,9 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             },
         };
 
-        var result = service.ApplyRuntimeOptions(configuration, new AppSettings());
-        result = service.ApplyRuntimeOptions(result, new AppSettings());
-        result = service.AddStandardRoutingModes(result);
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings());
+        result = Config.ApplyRuntimeOptions(result, new AppSettings());
+        result = Config.AddStandardRoutingModes(result);
         var rules = result["route"]!["rules"]!.AsArray();
 
         Assert.Equal(2, rules.Count);
@@ -380,18 +368,10 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             }
             """;
 
-        var connection = service.GetClashApiConnection(configuration);
+        var connection = Config.GetClashApiConnection(configuration);
 
         Assert.Equal(19090, connection?.Port);
         Assert.Equal("native-secret", connection?.Secret);
-        Assert.True(service.SupportsStandardRoutingModes(configuration));
-    }
-
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
-    {
-        await core.DisposeAsync();
-        directory.Dispose();
+        Assert.True(Config.SupportsStandardRoutingModes(configuration));
     }
 }

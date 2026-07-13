@@ -12,14 +12,6 @@ public sealed class ConfigurationFileService(
 
     public async Task<Profile> ImportAsync(
         string? name,
-        string sourcePath,
-        CancellationToken cancellationToken = default)
-    {
-        return await ImportAsync(name, [sourcePath], cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<Profile> ImportAsync(
-        string? name,
         IReadOnlyList<string> sourcePaths,
         CancellationToken cancellationToken = default)
     {
@@ -54,13 +46,11 @@ public sealed class ConfigurationFileService(
                     cancellationToken)
                 .ConfigureAwait(false);
         var parsed = configService.Parse(configuration);
-        var validation = await configService.ValidateAsync(
+        await configService.ValidateOrThrowAsync(
                 configuration,
                 workingDirectory,
                 cancellationToken)
             .ConfigureAwait(false);
-        if (!validation.IsSuccess)
-            throw new InvalidDataException(validation.CombinedOutput);
 
         var profileName = string.IsNullOrWhiteSpace(name)
             ? sources.Length == 1

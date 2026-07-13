@@ -1,4 +1,54 @@
+using BoxPilot.Core.Infrastructure;
+using BoxPilot.Core.Services;
+
 namespace BoxPilot.Core.Tests;
+
+public abstract class SingBoxTestBase : IAsyncLifetime
+{
+    private readonly TemporaryDirectory directory = new();
+
+    protected SingBoxTestBase(string? dataDirectory = null)
+    {
+        TestRoot = directory.Path;
+        Paths = new AppPaths(dataDirectory is null
+            ? TestRoot
+            : Path.Combine(TestRoot, dataDirectory));
+        Core = new SingBoxService(Paths);
+        Config = new SingBoxConfigService(Paths, Core);
+    }
+
+    protected string TestRoot { get; }
+
+    protected AppPaths Paths { get; }
+
+    protected SingBoxService Core { get; }
+
+    protected SingBoxConfigService Config { get; }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        await Core.DisposeAsync();
+        directory.Dispose();
+    }
+}
+
+internal static class SingBoxTestExtensions
+{
+    public static async Task<bool> InitializeIfInstalledAsync(this SingBoxService core)
+    {
+        try
+        {
+            await core.InitializeAsync();
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+    }
+}
 
 internal sealed class TemporaryDirectory : IDisposable
 {

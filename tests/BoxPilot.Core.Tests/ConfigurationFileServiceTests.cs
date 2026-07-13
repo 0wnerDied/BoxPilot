@@ -1,40 +1,27 @@
 using System.Text;
-using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 using BoxPilot.Core.Services;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class ConfigurationFileServiceTests : IAsyncLifetime
+public sealed class ConfigurationFileServiceTests : SingBoxTestBase
 {
-    private readonly TemporaryDirectory directory = new();
-    private readonly AppPaths paths;
-    private readonly SingBoxService core;
     private readonly ProfileRepository repository;
     private readonly ConfigurationFileService files;
 
-    public ConfigurationFileServiceTests()
+    public ConfigurationFileServiceTests() : base("data")
     {
-        paths = new AppPaths(Path.Combine(directory.Path, "data"));
-        core = new SingBoxService(paths);
-        var config = new SingBoxConfigService(paths, core);
-        repository = new ProfileRepository(paths);
-        files = new ConfigurationFileService(config, repository);
+        repository = new ProfileRepository(Paths);
+        files = new ConfigurationFileService(Config, repository);
     }
 
     [Fact]
     public async Task ImportPreservesNativeJsonAndRelativeAssetDirectory()
     {
-        try
-        {
-            await core.InitializeAsync();
-        }
-        catch (FileNotFoundException)
-        {
+        if (!await Core.InitializeIfInstalledAsync())
             return;
-        }
 
-        var sourceDirectory = Path.Combine(directory.Path, "native");
+        var sourceDirectory = Path.Combine(TestRoot, "native");
         Directory.CreateDirectory(sourceDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(sourceDirectory, "private.json"),
@@ -62,7 +49,7 @@ public sealed class ConfigurationFileServiceTests : IAsyncLifetime
         var sourcePath = Path.Combine(sourceDirectory, "client.json");
         await File.WriteAllTextAsync(sourcePath, configuration, new UTF8Encoding(false, true));
 
-        var profile = await files.ImportAsync(null, sourcePath);
+        var profile = await files.ImportAsync(null, [sourcePath]);
 
         Assert.Equal(ProfileSource.ImportedFile, profile.Source);
         Assert.Equal("client", profile.Name);
@@ -74,7 +61,7 @@ public sealed class ConfigurationFileServiceTests : IAsyncLifetime
     [Fact]
     public async Task ExportWritesStrictUtf8WithoutBom()
     {
-        var destination = Path.Combine(directory.Path, "export", "配置.json");
+        var destination = Path.Combine(TestRoot, "export", "配置.json");
 
         await files.ExportAsync("{\"tag\":\"日本节点\"}", destination);
 
@@ -86,16 +73,10 @@ public sealed class ConfigurationFileServiceTests : IAsyncLifetime
     [Fact]
     public async Task ImportMergesNativeFragmentsFromOneAssetDirectory()
     {
-        try
-        {
-            await core.InitializeAsync();
-        }
-        catch (FileNotFoundException)
-        {
+        if (!await Core.InitializeIfInstalledAsync())
             return;
-        }
 
-        var sourceDirectory = Path.Combine(directory.Path, "fragments");
+        var sourceDirectory = Path.Combine(TestRoot, "fragments");
         Directory.CreateDirectory(sourceDirectory);
         var basePath = Path.Combine(sourceDirectory, "00-base.json");
         var routePath = Path.Combine(sourceDirectory, "10-route.json");
@@ -123,13 +104,5 @@ public sealed class ConfigurationFileServiceTests : IAsyncLifetime
         Assert.Equal(sourceDirectory, profile.WorkingDirectory);
         Assert.Contains("\"level\": \"warn\"", configuration);
         Assert.Contains("\"type\": \"mixed\"", configuration);
-    }
-
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
-    {
-        await core.DisposeAsync();
-        directory.Dispose();
     }
 }

@@ -45,10 +45,7 @@ public partial class ProfilesViewModel(
     }
 
     [RelayCommand]
-    private async Task RefreshAsync()
-    {
-        await Session.RefreshSelectedSubscriptionAsync();
-    }
+    private Task RefreshAsync() => Session.RefreshSelectedSubscriptionAsync();
 
     [RelayCommand]
     private Task CreateBlankAsync()
@@ -86,14 +83,8 @@ public partial class ProfilesViewModel(
     }
 
     [RelayCommand]
-    private async Task AddRoutingModesAsync()
-    {
-        await Session.EnableStandardRoutingModesAsync();
-    }
+    private Task AddRoutingModesAsync() => Session.EnableStandardRoutingModesAsync();
 
     [RelayCommand]
-    private async Task KeepSubscriptionRoutingAsync()
-    {
-        await Session.KeepSubscriptionRoutingAsync();
-    }
+    private Task KeepSubscriptionRoutingAsync() => Session.KeepSubscriptionRoutingAsync();
 }

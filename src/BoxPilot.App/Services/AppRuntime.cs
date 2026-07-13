@@ -11,8 +11,13 @@ public sealed class AppRuntime : IAsyncDisposable
     private readonly SubscriptionClient subscriptionClient;
 
     public AppRuntime()
+        : this(AppPaths.CreateDefault())
     {
-        var paths = AppPaths.CreateDefault();
+    }
+
+    public AppRuntime(AppPaths paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
         var settingsStore = new SettingsStore(paths);
         var profileRepository = new ProfileRepository(paths);
         singBox = new SingBoxService(paths);

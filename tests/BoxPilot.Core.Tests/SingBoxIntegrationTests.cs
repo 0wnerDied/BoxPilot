@@ -19,14 +19,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     {
         var paths = new AppPaths(directory.Path);
         core = new SingBoxService(paths);
-        try
-        {
-            await core.InitializeAsync();
-        }
-        catch (FileNotFoundException)
-        {
+        if (!await core.InitializeIfInstalledAsync())
             return;
-        }
 
         var configService = new SingBoxConfigService(paths, core);
         var settings = new AppSettings
@@ -50,14 +44,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     {
         var paths = new AppPaths(directory.Path);
         core = new SingBoxService(paths);
-        try
-        {
-            await core.InitializeAsync();
-        }
-        catch (FileNotFoundException)
-        {
+        if (!await core.InitializeIfInstalledAsync())
             return;
-        }
 
         const string clash = """
             proxies:
@@ -96,14 +84,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
         var paths = new AppPaths(directory.Path);
         var serviceClient = new FakeCoreServiceClient();
         core = new SingBoxService(paths, () => serviceClient, static () => false);
-        try
-        {
-            await core.InitializeAsync();
-        }
-        catch (FileNotFoundException)
-        {
+        if (!await core.InitializeIfInstalledAsync())
             return;
-        }
 
         var (mixedPort, apiPort) = ReserveTcpPorts();
         var configService = new SingBoxConfigService(paths, core);
@@ -135,7 +117,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
         serviceClient.RaiseDisconnected();
         Assert.Equal(CoreState.Stopped, core.State);
 
-        await core.StartAsync(localPath);
+        await core.StartAsync(localPath, null);
         await Task.Delay(200);
         serviceClient.RaiseDisconnected();
 

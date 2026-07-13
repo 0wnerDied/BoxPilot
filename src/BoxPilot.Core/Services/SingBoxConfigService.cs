@@ -146,7 +146,7 @@ public sealed class SingBoxConfigService(
         }
 
         var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
-        var route = EnsureObject(clone, "route");
+        var route = JsonNodes.EnsureObject(clone, "route");
         var globalSource = FindGlobalOutbound(outboundObjects, route, includeManaged: false)
                            ?? throw new InvalidDataException(
                                "Standard routing modes require at least one proxy outbound.");
@@ -238,18 +238,18 @@ public sealed class SingBoxConfigService(
         var prepared = configuration.DeepClone().AsObject();
         if (!preservePolicyGroups)
             ManagedSubscriptionDefaults.Apply(prepared);
-        var experimental = EnsureObject(prepared, "experimental");
-        var cache = EnsureObject(experimental, "cache_file");
+        var experimental = JsonNodes.EnsureObject(prepared, "experimental");
+        var cache = JsonNodes.EnsureObject(experimental, "cache_file");
         cache["enabled"] = true;
         cache["cache_id"] = cacheId;
         return prepared;
     }
 
-    public async Task<CommandResult> ValidateAsync(
+    public Task<CommandResult> ValidateAsync(
         string configuration,
         CancellationToken cancellationToken = default)
     {
-        return await ValidateAsync(configuration, null, cancellationToken).ConfigureAwait(false);
+        return ValidateAsync(configuration, null, cancellationToken);
     }
 
     public async Task<string> MergeAsync(
@@ -309,13 +309,24 @@ public sealed class SingBoxConfigService(
         }
     }
 
+    public async Task ValidateOrThrowAsync(
+        string configuration,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ValidateAsync(configuration, workingDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.IsSuccess)
+            throw new InvalidDataException(result.CombinedOutput);
+    }
+
     public JsonObject ApplyRuntimeOptions(JsonObject configuration, AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(settings);
 
         var clone = configuration.DeepClone().AsObject();
-        var inbounds = EnsureArray(clone, "inbounds");
+        var inbounds = JsonNodes.EnsureArray(clone, "inbounds");
         var mixed = inbounds
             .OfType<JsonObject>()
             .FirstOrDefault(item => string.Equals(item["type"]?.GetValue<string>(), "mixed", StringComparison.Ordinal));
@@ -360,17 +371,17 @@ public sealed class SingBoxConfigService(
                 inbounds.Remove(tun);
         }
 
-        var experimental = EnsureObject(clone, "experimental");
-        var cache = EnsureObject(experimental, "cache_file");
+        var experimental = JsonNodes.EnsureObject(clone, "experimental");
+        var cache = JsonNodes.EnsureObject(experimental, "cache_file");
         cache["enabled"] = true;
         cache["path"] = Path.Combine(paths.CacheDirectory, "sing-box.db");
 
-        var clashApi = EnsureObject(experimental, "clash_api");
+        var clashApi = JsonNodes.EnsureObject(experimental, "clash_api");
         clashApi["external_controller"] = $"127.0.0.1:{settings.ClashApiPort}";
         clashApi["secret"] = settings.ClashApiSecret;
         clashApi["default_mode"] = NormalizeRoutingMode(settings.RoutingMode);
 
-        var route = EnsureObject(clone, "route");
+        var route = JsonNodes.EnsureObject(clone, "route");
         StabilizeRemoteRuleSetDownloads(clone, route);
         route["auto_detect_interface"] = true;
         if (!OperatingSystem.IsAndroid())
@@ -390,7 +401,7 @@ public sealed class SingBoxConfigService(
         string global,
         bool replaceGlobal)
     {
-        var rules = EnsureArray(route, "rules");
+        var rules = JsonNodes.EnsureArray(route, "rules");
         var insertionIndex = FindInitialRuleIndex(rules);
         if (!ContainsRoutingMode(rules, "direct"))
         {
@@ -579,8 +590,8 @@ public sealed class SingBoxConfigService(
             return;
         }
 
-        dns ??= EnsureObject(configuration, "dns");
-        var servers = EnsureArray(dns, "servers");
+        dns ??= JsonNodes.EnsureObject(configuration, "dns");
+        var servers = JsonNodes.EnsureArray(dns, "servers");
         foreach (var existing in servers.OfType<JsonObject>()
                      .Where(static server => server["tag"]?.ToString() is "dns-custom" or "dns-bootstrap")
                      .ToArray())
@@ -588,7 +599,7 @@ public sealed class SingBoxConfigService(
             servers.Remove(existing);
         }
 
-        var rules = EnsureArray(dns, "rules");
+        var rules = JsonNodes.EnsureArray(dns, "rules");
         foreach (var rule in rules.OfType<JsonObject>()
                      .Where(static rule => rule["server"]?.ToString() == "dns-custom")
                      .ToArray())
@@ -597,7 +608,7 @@ public sealed class SingBoxConfigService(
         }
         if (dns["final"]?.ToString() == "dns-custom")
             dns.Remove("final");
-        var route = EnsureObject(configuration, "route");
+        var route = JsonNodes.EnsureObject(configuration, "route");
         if (route["default_domain_resolver"]?.ToString() is "dns-custom" or "dns-bootstrap")
             route.Remove("default_domain_resolver");
 
@@ -737,25 +748,5 @@ public sealed class SingBoxConfigService(
             "direct",
             dnsStrategy: null);
         return ApplyRuntimeOptions(configuration, settings);
-    }
-
-    private static JsonArray EnsureArray(JsonObject parent, string propertyName)
-    {
-        if (parent[propertyName] is JsonArray value)
-            return value;
-
-        value = [];
-        parent[propertyName] = value;
-        return value;
-    }
-
-    private static JsonObject EnsureObject(JsonObject parent, string propertyName)
-    {
-        if (parent[propertyName] is JsonObject value)
-            return value;
-
-        value = [];
-        parent[propertyName] = value;
-        return value;
     }
 }

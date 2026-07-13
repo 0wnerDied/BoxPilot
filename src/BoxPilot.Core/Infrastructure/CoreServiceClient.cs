@@ -107,21 +107,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
 
         // Closing the authenticated lease makes the service stop TUN even if IPC is unresponsive.
         await lifetime.CancelAsync().ConfigureAwait(false);
-        var activeConnection = Interlocked.Exchange(ref connection, null);
-        if (activeConnection is not null)
-            await activeConnection.DisposeAsync().ConfigureAwait(false);
-        ClearConnectionState();
-        FailPendingRequests();
-        if (readerTask is not null)
-        {
-            try
-            {
-                await readerTask.WaitAsync(ReaderShutdownTimeout).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-        }
+        await CloseConnectionAsync().ConfigureAwait(false);
         lifetime.Dispose();
         connectionGate.Dispose();
         writeGate.Dispose();
@@ -439,26 +425,33 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
         expectedDisconnect = true;
         try
         {
-            var activeConnection = Interlocked.Exchange(ref connection, null);
-            if (activeConnection is not null)
-                await activeConnection.DisposeAsync().ConfigureAwait(false);
-            ClearConnectionState();
-            FailPendingRequests();
-            if (readerTask is not null)
-            {
-                try
-                {
-                    await readerTask.WaitAsync(ReaderShutdownTimeout).ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-                readerTask = null;
-            }
+            await CloseConnectionAsync().ConfigureAwait(false);
         }
         finally
         {
             expectedDisconnect = false;
+        }
+    }
+
+    private async Task CloseConnectionAsync()
+    {
+        var activeConnection = Interlocked.Exchange(ref connection, null);
+        if (activeConnection is not null)
+            await activeConnection.DisposeAsync().ConfigureAwait(false);
+
+        ClearConnectionState();
+        FailPendingRequests();
+        var reader = readerTask;
+        readerTask = null;
+        if (reader is null)
+            return;
+
+        try
+        {
+            await reader.WaitAsync(ReaderShutdownTimeout).ConfigureAwait(false);
+        }
+        catch
+        {
         }
     }
 

@@ -44,7 +44,7 @@ public sealed record CustomRuleSet
     public string Tag => $"boxpilot-custom-{Id:N}";
 }
 
-public sealed record RoutingOutbound(string Tag, string Type);
+public sealed record RoutingOutbound(string Tag);
 
 public sealed record CustomRuleSetChange(CustomRuleSet RuleSet, string Configuration);
 
