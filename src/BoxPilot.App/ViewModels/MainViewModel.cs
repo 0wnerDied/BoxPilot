@@ -20,7 +20,7 @@ public partial class MainViewModel : ViewModelBase
         Session = session;
 
         dashboard = new DashboardViewModel(session, localization);
-        profiles = new ProfilesViewModel(session);
+        profiles = new ProfilesViewModel(session, localization);
         configuration = new ConfigurationViewModel(session, localization);
         logs = new LogsViewModel(session);
         tools = new ToolsViewModel(session, localization);

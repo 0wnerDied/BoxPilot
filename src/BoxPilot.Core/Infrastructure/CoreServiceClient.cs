@@ -15,6 +15,7 @@ internal interface ICoreServiceClient : IAsyncDisposable
     Task StartAsync(
         string executablePath,
         string configurationPath,
+        string? workingDirectory,
         CancellationToken cancellationToken);
 
     Task StopAsync(CancellationToken cancellationToken);
@@ -57,6 +58,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
     public async Task StartAsync(
         string executablePath,
         string configurationPath,
+        string? workingDirectory,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
@@ -69,7 +71,12 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
         await EnsureConnectedAsync(executablePath, cancellationToken).ConfigureAwait(false);
         try
         {
-            await SendRequestAsync("start", configuration, cancellationToken).ConfigureAwait(false);
+            await SendRequestAsync(
+                    "start",
+                    configuration,
+                    workingDirectory,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch
         {
@@ -89,7 +96,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
     {
         if (!IsConnected)
             return;
-        await SendRequestAsync("stop", null, cancellationToken).ConfigureAwait(false);
+        await SendRequestAsync("stop", null, null, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -123,6 +130,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
     private async Task SendRequestAsync(
         string command,
         string? configuration,
+        string? workingDirectory,
         CancellationToken cancellationToken)
     {
         await RunWithTimeoutAsync(async requestCancellation =>
@@ -146,6 +154,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
                             RequestId = requestId,
                             Command = command,
                             Configuration = configuration,
+                            WorkingDirectory = workingDirectory,
                         },
                         writeGate,
                         requestCancellation)

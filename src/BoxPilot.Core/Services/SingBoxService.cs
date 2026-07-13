@@ -119,15 +119,32 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         string configurationPath,
         CancellationToken cancellationToken = default)
     {
+        return CheckAsync(configurationPath, null, cancellationToken);
+    }
+
+    public Task<CommandResult> CheckAsync(
+        string configurationPath,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
         return RunCommandAsync(
             ["check", "-c", Path.GetFullPath(configurationPath)],
             TimeSpan.FromSeconds(30),
-            cancellationToken);
+            cancellationToken,
+            workingDirectory);
     }
 
     public Task<CommandResult> RunToolAsync(
         string commandLine,
+        CancellationToken cancellationToken = default)
+    {
+        return RunToolAsync(commandLine, null, cancellationToken);
+    }
+
+    public Task<CommandResult> RunToolAsync(
+        string commandLine,
+        string? workingDirectory,
         CancellationToken cancellationToken = default)
     {
         var arguments = CommandLineTokenizer.Split(commandLine);
@@ -136,11 +153,47 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         if (string.Equals(arguments[0], "run", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Use BoxPilot's Start action to run the managed core.");
 
-        return RunCommandAsync(arguments, TimeSpan.FromMinutes(5), cancellationToken);
+        return RunCommandAsync(
+            arguments,
+            TimeSpan.FromMinutes(5),
+            cancellationToken,
+            workingDirectory);
+    }
+
+    public Task<CommandResult> MergeAsync(
+        IReadOnlyList<string> configurationPaths,
+        string outputPath,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configurationPaths);
+        if (configurationPaths.Count == 0)
+            throw new ArgumentException("At least one configuration is required.", nameof(configurationPaths));
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var arguments = new List<string> { "merge", Path.GetFullPath(outputPath) };
+        foreach (var path in configurationPaths)
+        {
+            arguments.Add("-c");
+            arguments.Add(Path.GetFullPath(path));
+        }
+        return RunCommandAsync(
+            arguments,
+            TimeSpan.FromSeconds(30),
+            cancellationToken,
+            workingDirectory);
     }
 
     public async Task StartAsync(
         string configurationPath,
+        CancellationToken cancellationToken = default)
+    {
+        await StartAsync(configurationPath, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task StartAsync(
+        string configurationPath,
+        string? workingDirectory,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
@@ -173,6 +226,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                     await client.StartAsync(
                             executablePath,
                             Path.GetFullPath(configurationPath),
+                            workingDirectory,
                             operationCancellation)
                         .ConfigureAwait(false);
                     if (state != CoreState.Running)
@@ -190,7 +244,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             await ReleaseCoreServiceAsync().ConfigureAwait(false);
 
             var startInfo = CreateStartInfo(["run", "-c", Path.GetFullPath(configurationPath)]);
-            startInfo.WorkingDirectory = paths.RuntimeDirectory;
+            startInfo.WorkingDirectory = ResolveWorkingDirectory(workingDirectory);
             startInfo.RedirectStandardOutput = true;
             startInfo.RedirectStandardError = true;
 
@@ -309,8 +363,16 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         string configurationPath,
         CancellationToken cancellationToken = default)
     {
+        await RestartAsync(configurationPath, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RestartAsync(
+        string configurationPath,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
         await StopAsync(cancellationToken).ConfigureAwait(false);
-        await StartAsync(configurationPath, cancellationToken).ConfigureAwait(false);
+        await StartAsync(configurationPath, workingDirectory, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task UninstallCoreServiceAsync(CancellationToken cancellationToken = default)
@@ -324,7 +386,8 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     private async Task<CommandResult> RunCommandAsync(
         IReadOnlyList<string> arguments,
         TimeSpan timeout,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? workingDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(executablePath))
             executablePath = ResolveExecutable();
@@ -335,6 +398,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         };
         commandProcess.StartInfo.RedirectStandardOutput = true;
         commandProcess.StartInfo.RedirectStandardError = true;
+        commandProcess.StartInfo.WorkingDirectory = ResolveWorkingDirectory(workingDirectory);
 
         if (!commandProcess.Start())
             throw new InvalidOperationException("Unable to start sing-box.");
@@ -359,6 +423,20 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             commandProcess.ExitCode,
             await standardOutputTask.ConfigureAwait(false),
             await standardErrorTask.ConfigureAwait(false));
+    }
+
+    private string ResolveWorkingDirectory(string? workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            paths.EnsureCreated();
+            return paths.RuntimeDirectory;
+        }
+
+        var fullPath = Path.GetFullPath(workingDirectory);
+        if (!Directory.Exists(fullPath))
+            throw new DirectoryNotFoundException($"The configuration working directory does not exist: {fullPath}");
+        return fullPath;
     }
 
     public async ValueTask DisposeAsync()

@@ -307,11 +307,17 @@ public static class CoreServiceHost
                         request.Configuration,
                         cancellationToken)
                     .ConfigureAwait(false);
-                var check = await core.CheckAsync(layout.RuntimeConfigurationPath, cancellationToken)
+                var check = await core.CheckAsync(
+                        layout.RuntimeConfigurationPath,
+                        request.WorkingDirectory,
+                        cancellationToken)
                     .ConfigureAwait(false);
                 if (!check.IsSuccess)
                     throw new InvalidDataException(check.CombinedOutput);
-                await core.StartAsync(layout.RuntimeConfigurationPath, cancellationToken)
+                await core.StartAsync(
+                        layout.RuntimeConfigurationPath,
+                        request.WorkingDirectory,
+                        cancellationToken)
                     .ConfigureAwait(false);
                 break;
             case "stop":

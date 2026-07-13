@@ -12,7 +12,7 @@
           <TextBlock Grid.Row="0" Text="{DynamicResource ImportSection}"
                      Classes="section-title" />
 
-          <Grid Grid.Row="2" ColumnDefinitions="220,*,Auto,Auto" ColumnSpacing="12">
+          <Grid Grid.Row="2" ColumnDefinitions="220,*,Auto,Auto,Auto" ColumnSpacing="12">
             <StackPanel Spacing="6">
               <TextBlock Text="{DynamicResource SubscriptionName}" Classes="muted"
                          FontSize="13" />
@@ -33,6 +33,11 @@
                     MinWidth="126" VerticalAlignment="Bottom" />
             <Button Grid.Column="3" Classes="ghost" Content="{DynamicResource CreateBlank}"
                     Command="{Binding CreateBlankCommand}"
+                    IsEnabled="{Binding Session.CanModifyProfiles}"
+                    MinWidth="126" VerticalAlignment="Bottom" />
+            <Button Grid.Column="4" Classes="ghost"
+                    Content="{DynamicResource ImportConfiguration}"
+                    Click="ImportConfigurationClicked"
                     IsEnabled="{Binding Session.CanModifyProfiles}"
                     MinWidth="126" VerticalAlignment="Bottom" />
           </Grid>
@@ -100,6 +105,9 @@
             </Border>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9"
                         IsVisible="{Binding !IsDeleteConfirmationVisible}">
+              <Button Classes="ghost" Content="{DynamicResource ExportConfiguration}"
+                      Click="ExportConfigurationClicked"
+                      IsEnabled="{Binding Session.CanExportConfiguration}" />
               <Button Classes="ghost" Content="{DynamicResource Update}"
                       Command="{Binding RefreshCommand}"
                       IsEnabled="{Binding Session.CanRefreshSubscription}" />

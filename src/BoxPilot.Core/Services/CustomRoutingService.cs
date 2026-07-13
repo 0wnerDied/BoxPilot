@@ -253,15 +253,23 @@ public sealed class CustomRoutingService(
         JsonObject configuration,
         IEnumerable<CustomRuleSet> profileRuleSets)
     {
+        var activeRuleSets = profileRuleSets.ToArray();
         var clone = configuration.DeepClone().AsObject();
+        if (clone["route"] is JsonObject existingRoute)
+        {
+            RemoveManagedRules(
+                existingRoute["rules"] as JsonArray,
+                existingRoute["rule_set"] as JsonArray);
+        }
+        if (activeRuleSets.Length == 0)
+            return clone;
+
         var route = EnsureObject(clone, "route");
         var rules = EnsureArray(route, "rules");
         var definitions = EnsureArray(route, "rule_set");
-        RemoveManagedRules(rules, definitions);
-
         var targets = GetOutboundTags(clone);
         var insertionIndex = FindRuleInsertionIndex(rules);
-        foreach (var ruleSet in profileRuleSets)
+        foreach (var ruleSet in activeRuleSets)
         {
             if (!targets.Contains(ruleSet.Outbound))
             {
@@ -304,21 +312,27 @@ public sealed class CustomRoutingService(
         return clone;
     }
 
-    private static void RemoveManagedRules(JsonArray rules, JsonArray definitions)
+    private static void RemoveManagedRules(JsonArray? rules, JsonArray? definitions)
     {
-        foreach (var definition in definitions.OfType<JsonObject>()
-                     .Where(static definition => IsManagedTag(definition["tag"]?.ToString()))
-                     .ToArray())
+        if (definitions is not null)
         {
-            definitions.Remove(definition);
+            foreach (var definition in definitions.OfType<JsonObject>()
+                         .Where(static definition => IsManagedTag(definition["tag"]?.ToString()))
+                         .ToArray())
+            {
+                definitions.Remove(definition);
+            }
         }
 
-        foreach (var rule in rules.OfType<JsonObject>()
-                     .Where(static rule => rule["rule_set"] is JsonArray tags
-                                           && tags.Any(tag => IsManagedTag(tag?.ToString())))
-                     .ToArray())
+        if (rules is not null)
         {
-            rules.Remove(rule);
+            foreach (var rule in rules.OfType<JsonObject>()
+                         .Where(static rule => rule["rule_set"] is JsonArray tags
+                                               && tags.Any(tag => IsManagedTag(tag?.ToString())))
+                         .ToArray())
+            {
+                rules.Remove(rule);
+            }
         }
     }
 

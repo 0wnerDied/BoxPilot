@@ -129,7 +129,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
                 ClashApiPort = apiPort,
             })));
 
-        await core.StartAsync(tunPath);
+        await core.StartAsync(tunPath, directory.Path);
+        Assert.Equal(directory.Path, serviceClient.WorkingDirectory);
         await core.StopAsync();
         serviceClient.RaiseDisconnected();
         Assert.Equal(CoreState.Stopped, core.State);
@@ -176,11 +177,15 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
 
         public bool Disposed { get; private set; }
 
+        public string? WorkingDirectory { get; private set; }
+
         public Task StartAsync(
             string executablePath,
             string configurationPath,
+            string? workingDirectory,
             CancellationToken cancellationToken)
         {
+            WorkingDirectory = workingDirectory;
             StateChanged?.Invoke(new CoreStateChangedEventArgs(
                 CoreState.Running,
                 42,

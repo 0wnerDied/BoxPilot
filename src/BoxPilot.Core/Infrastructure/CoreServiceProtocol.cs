@@ -18,6 +18,8 @@ internal sealed record CoreServiceMessage
 
     public string? Configuration { get; init; }
 
+    public string? WorkingDirectory { get; init; }
+
     public bool Success { get; init; }
 
     public string? Error { get; init; }
@@ -94,7 +96,7 @@ internal sealed record CoreServiceUninstallRequest
 
 internal static class CoreServiceProtocol
 {
-    public const int Version = 1;
+    public const int Version = 2;
 
     private const int MaximumMessageBytes = 16 * 1024 * 1024;
 

@@ -84,3 +84,5 @@ public sealed record CoreStateChangedEventArgs(
     CoreState Current,
     int? ProcessId,
     string? Error);
+
+public sealed record ClashApiConnection(int Port, string Secret);

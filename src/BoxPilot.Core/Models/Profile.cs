@@ -28,6 +28,8 @@ public sealed record Profile
 
     public string? SubscriptionFormat { get; init; }
 
+    public string? WorkingDirectory { get; init; }
+
     public string? ETag { get; init; }
 
     public DateTimeOffset? LastModified { get; init; }

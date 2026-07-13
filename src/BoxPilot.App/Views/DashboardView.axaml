@@ -12,12 +12,15 @@
         <StackPanel Orientation="Horizontal" Spacing="3">
           <RadioButton GroupName="RoutingMode" Content="{DynamicResource RuleMode}"
                        IsChecked="{Binding IsRuleMode, Mode=OneWay}"
+                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
                        Command="{Binding SetRoutingModeCommand}" CommandParameter="Rule" />
           <RadioButton GroupName="RoutingMode" Content="{DynamicResource GlobalMode}"
                        IsChecked="{Binding IsGlobalMode, Mode=OneWay}"
+                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
                        Command="{Binding SetRoutingModeCommand}" CommandParameter="Global" />
           <RadioButton GroupName="RoutingMode" Content="{DynamicResource DirectMode}"
                        IsChecked="{Binding IsDirectMode, Mode=OneWay}"
+                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
                        Command="{Binding SetRoutingModeCommand}" CommandParameter="Direct" />
         </StackPanel>
       </Border>

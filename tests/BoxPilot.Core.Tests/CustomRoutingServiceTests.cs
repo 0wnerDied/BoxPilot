@@ -73,6 +73,33 @@ public sealed class CustomRoutingServiceTests : IAsyncLifetime
         Assert.Equal("direct", definitions[1]?["download_detour"]?.ToString());
     }
 
+    [Fact]
+    public void ApplyWithoutManagedRulesPreservesCompleteNativeConfiguration()
+    {
+        var configuration = new JsonObject
+        {
+            ["ntp"] = new JsonObject { ["enabled"] = true, ["server"] = "time.example.test" },
+            ["certificate"] = new JsonObject
+            {
+                ["certificate_directory_path"] = new JsonArray("certificates"),
+            },
+            ["endpoints"] = new JsonArray(new JsonObject
+            {
+                ["type"] = "tailscale",
+                ["tag"] = "tailnet",
+            }),
+            ["services"] = new JsonArray(new JsonObject
+            {
+                ["type"] = "derp",
+                ["tag"] = "relay",
+            }),
+        };
+
+        var result = routing.Apply(configuration, []);
+
+        Assert.True(JsonNode.DeepEquals(configuration, result));
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

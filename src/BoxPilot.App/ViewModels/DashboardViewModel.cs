@@ -243,9 +243,7 @@ public partial class DashboardViewModel(
 
     private ClashApiClient CreateApiClient()
     {
-        return new ClashApiClient(
-            Session.Settings.ClashApiPort,
-            Session.Settings.ClashApiSecret);
+        return Session.CreateClashApiClient();
     }
 
     private static async Task<IReadOnlyList<ProxyChoice>> LoadProxyChoicesAsync(

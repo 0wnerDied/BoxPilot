@@ -1,11 +1,29 @@
+using BoxPilot.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace BoxPilot.App.ViewModels;
 
-public partial class ProfilesViewModel(AppSessionViewModel session) : ViewModelBase
+public partial class ProfilesViewModel(
+    AppSessionViewModel session,
+    LocalizationService localization) : ViewModelBase
 {
     public AppSessionViewModel Session { get; } = session;
+
+    public string ImportConfigurationTitle => localization["ImportConfiguration"];
+
+    public string ExportConfigurationTitle => localization["ExportConfiguration"];
+
+    public string ExportFileName
+    {
+        get
+        {
+            var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+            var name = Session.SelectedProfile?.Name ?? "sing-box";
+            return new string(name.Select(character => invalid.Contains(character) ? '_' : character).ToArray())
+                   + ".json";
+        }
+    }
 
     [ObservableProperty]
     public partial string ProfileName { get; set; } = string.Empty;
@@ -36,6 +54,16 @@ public partial class ProfilesViewModel(AppSessionViewModel session) : ViewModelB
     private Task CreateBlankAsync()
     {
         return Session.CreateBlankProfileAsync(ProfileName);
+    }
+
+    public Task ImportConfigurationAsync(IReadOnlyList<string> paths)
+    {
+        return Session.ImportConfigurationFileAsync(ProfileName, paths);
+    }
+
+    public Task ExportConfigurationAsync(string path)
+    {
+        return Session.ExportSelectedConfigurationAsync(path);
     }
 
     [RelayCommand]

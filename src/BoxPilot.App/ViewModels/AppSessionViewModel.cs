@@ -19,6 +19,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private readonly SingBoxConfigService configService;
     private readonly ProfileImportService profileImporter;
     private readonly CustomRoutingService customRoutingService;
+    private readonly ConfigurationFileService configurationFileService;
     private readonly LocalizationService localization;
     private readonly ConcurrentQueue<CoreLogEntry> pendingLogs = new();
     private readonly ConfigurationDraftStore configurationDrafts = new();
@@ -29,6 +30,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private long downloadBytesPerSecond;
     private bool suppressConfigurationDirty;
     private bool suppressProfileLoad;
+    private ClashApiConnection? clashApiConnection;
+    private bool supportsStandardRoutingModes;
     private bool initialized;
     private bool disposed;
 
@@ -40,6 +43,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SingBoxConfigService configService,
         ProfileImportService profileImporter,
         CustomRoutingService customRoutingService,
+        ConfigurationFileService configurationFileService,
         LocalizationService localization)
     {
         this.paths = paths;
@@ -49,6 +53,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         this.configService = configService;
         this.profileImporter = profileImporter;
         this.customRoutingService = customRoutingService;
+        this.configurationFileService = configurationFileService;
         this.localization = localization;
 
         singBox.LogReceived += OnLogReceived;
@@ -101,6 +106,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     public bool CanDeleteProfile => CanModifyProfiles && SelectedProfile is not null;
 
+    public bool CanExportConfiguration => !IsBusy && SelectedProfile is not null;
+
     public bool CanRefreshSubscription => !IsBusy
                                           && !IsConfigurationDirty
                                           && SelectedProfile?.Source == ProfileSource.Subscription
@@ -109,6 +116,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public bool CanManageRuleSets => !IsBusy
                                      && !IsConfigurationDirty
                                      && SelectedProfile is not null;
+
+    public bool HasClashApi => clashApiConnection is not null;
+
+    public bool CanChangeRoutingMode => !IsBusy && HasClashApi && supportsStandardRoutingModes;
 
     public string UploadRate => FormatRate(uploadBytesPerSecond);
 
@@ -204,9 +215,16 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var profile = SelectedProfile
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
-            await singBox.StartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
-            await ApplyRoutingModeToCoreAsync(cancellationToken);
-            StartTrafficMonitor();
+            await singBox.StartAsync(
+                paths.GetProfileConfigPath(profile),
+                profile.WorkingDirectory,
+                cancellationToken);
+            if (HasClashApi)
+            {
+                if (supportsStandardRoutingModes)
+                    await ApplyRoutingModeToCoreAsync(cancellationToken);
+                StartTrafficMonitor();
+            }
         });
     }
 
@@ -227,9 +245,16 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
             StopTrafficMonitor();
-            await singBox.RestartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
-            await ApplyRoutingModeToCoreAsync(cancellationToken);
-            StartTrafficMonitor();
+            await singBox.RestartAsync(
+                paths.GetProfileConfigPath(profile),
+                profile.WorkingDirectory,
+                cancellationToken);
+            if (HasClashApi)
+            {
+                if (supportsStandardRoutingModes)
+                    await ApplyRoutingModeToCoreAsync(cancellationToken);
+                StartTrafficMonitor();
+            }
         });
     }
 
@@ -260,7 +285,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         return RunBusyAsync(async () =>
         {
-            var result = await configService.ValidateAsync(ConfigurationText, cancellationToken);
+            var result = await configService.ValidateAsync(
+                ConfigurationText,
+                SelectedProfile?.WorkingDirectory,
+                cancellationToken);
             var message = result.IsSuccess
                 ? $"✓ {localization["ConfigurationValid"]}"
                 : result.CombinedOutput;
@@ -297,6 +325,41 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                   + $"{outcome.Warnings.Count} {localization["Warnings"]}";
             ShowImportOutcomeToast(outcome, message);
             return outcome;
+        });
+    }
+
+    public Task<Profile?> ImportConfigurationFileAsync(
+        string name,
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        return RunBusyWithResultAsync(async () =>
+        {
+            var profile = await configurationFileService.ImportAsync(
+                name,
+                paths,
+                cancellationToken);
+            await ReloadProfilesAsync(cancellationToken);
+            var imported = Profiles.First(item => item.Id == profile.Id);
+            await SelectProfileAsync(imported, cancellationToken);
+            Toast.Show(localization["ConfigurationImported"], ToastLevel.Success);
+            return imported;
+        });
+    }
+
+    public Task ExportSelectedConfigurationAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        return RunBusyAsync(async () =>
+        {
+            if (SelectedProfile is null)
+                throw new InvalidOperationException(localization["NoProfile"]);
+            await configurationFileService.ExportAsync(
+                ConfigurationText,
+                path,
+                cancellationToken);
+            Toast.Show(localization["ConfigurationExported"], ToastLevel.Success);
         });
     }
 
@@ -378,12 +441,15 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             if (SelectedProfile is { } selectedProfile
                 && !string.IsNullOrWhiteSpace(ConfigurationText))
             {
-                var parsed = configService.Parse(ConfigurationText);
-                updatedConfiguration = await customRoutingService.ApplyAsync(
-                    selectedProfile.Id,
-                    configService.Serialize(configService.ApplyRuntimeOptions(parsed, updated)),
+                updatedConfiguration = await PrepareProfileConfigurationAsync(
+                    selectedProfile,
+                    ConfigurationText,
+                    updated,
                     cancellationToken);
-                var validation = await configService.ValidateAsync(updatedConfiguration, cancellationToken);
+                var validation = await configService.ValidateAsync(
+                    updatedConfiguration,
+                    selectedProfile.WorkingDirectory,
+                    cancellationToken);
                 if (!validation.IsSuccess)
                     throw new InvalidDataException(validation.CombinedOutput);
             }
@@ -410,8 +476,12 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             CoreVersion = version;
             if (restart && SelectedProfile is not null)
             {
-                await singBox.StartAsync(paths.GetProfileConfigPath(SelectedProfile), cancellationToken);
-                await ApplyRoutingModeToCoreAsync(cancellationToken);
+                await singBox.StartAsync(
+                    paths.GetProfileConfigPath(SelectedProfile),
+                    SelectedProfile.WorkingDirectory,
+                    cancellationToken);
+                if (supportsStandardRoutingModes)
+                    await ApplyRoutingModeToCoreAsync(cancellationToken);
             }
 
             Toast.Show(localization["SettingsSaved"], ToastLevel.Success);
@@ -526,12 +596,15 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
             if (SelectedProfile is { } profile && !string.IsNullOrWhiteSpace(ConfigurationText))
             {
-                var parsed = configService.Parse(ConfigurationText);
-                var updatedConfiguration = await customRoutingService.ApplyAsync(
-                    profile.Id,
-                    configService.Serialize(configService.ApplyRuntimeOptions(parsed, updatedSettings)),
+                var updatedConfiguration = await PrepareProfileConfigurationAsync(
+                    profile,
+                    ConfigurationText,
+                    updatedSettings,
                     cancellationToken);
-                var validation = await configService.ValidateAsync(updatedConfiguration, cancellationToken);
+                var validation = await configService.ValidateAsync(
+                    updatedConfiguration,
+                    profile.WorkingDirectory,
+                    cancellationToken);
                 if (!validation.IsSuccess)
                     throw new InvalidDataException(validation.CombinedOutput);
                 await profileRepository.WriteConfigurationAsync(
@@ -545,9 +618,9 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             Settings = updatedSettings;
             await settingsStore.SaveAsync(Settings, cancellationToken);
 
-            if (IsCoreRunning)
+            if (IsCoreRunning && HasClashApi)
             {
-                using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
+                using var client = CreateClashApiClient();
                 await client.SetModeAsync(normalized, cancellationToken);
             }
 
@@ -562,7 +635,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         IsBusy = true;
         try
         {
-            return await singBox.RunToolAsync(command, cancellationToken);
+            return await singBox.RunToolAsync(
+                command,
+                SelectedProfile?.WorkingDirectory,
+                cancellationToken);
         }
         catch (Exception exception)
         {
@@ -573,6 +649,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
             IsBusy = false;
         }
+    }
+
+    public ClashApiClient CreateClashApiClient()
+    {
+        var connection = clashApiConnection
+                         ?? throw new InvalidOperationException(localization["ClashApiUnavailable"]);
+        return new ClashApiClient(connection.Port, connection.Secret);
     }
 
     public void ClearLogs()
@@ -627,6 +710,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             _ = SelectProfileSafelyAsync(value);
         OnPropertyChanged(nameof(CanStartCore));
         OnPropertyChanged(nameof(CanDeleteProfile));
+        OnPropertyChanged(nameof(CanExportConfiguration));
         OnPropertyChanged(nameof(CanRefreshSubscription));
         OnPropertyChanged(nameof(ActiveNodeDisplay));
     }
@@ -655,6 +739,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanStopCore));
         OnPropertyChanged(nameof(CanModifyProfiles));
         OnPropertyChanged(nameof(CanDeleteProfile));
+        OnPropertyChanged(nameof(CanExportConfiguration));
         OnPropertyChanged(nameof(CoreStateDisplay));
     }
 
@@ -664,20 +749,25 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanStopCore));
         OnPropertyChanged(nameof(CanModifyProfiles));
         OnPropertyChanged(nameof(CanDeleteProfile));
+        OnPropertyChanged(nameof(CanExportConfiguration));
         OnPropertyChanged(nameof(CanRefreshSubscription));
         OnPropertyChanged(nameof(CanManageRuleSets));
+        OnPropertyChanged(nameof(CanChangeRoutingMode));
     }
 
     private async Task SaveAndValidateSelectedAsync(CancellationToken cancellationToken)
     {
         var profile = SelectedProfile
             ?? throw new InvalidOperationException(localization["NoProfile"]);
-        var parsed = configService.Parse(ConfigurationText);
-        var formatted = await customRoutingService.ApplyAsync(
-            profile.Id,
-            configService.Serialize(configService.ApplyRuntimeOptions(parsed, Settings)),
+        var formatted = await PrepareProfileConfigurationAsync(
+            profile,
+            ConfigurationText,
+            Settings,
             cancellationToken);
-        var validation = await configService.ValidateAsync(formatted, cancellationToken);
+        var validation = await configService.ValidateAsync(
+            formatted,
+            profile.WorkingDirectory,
+            cancellationToken);
         if (!validation.IsSuccess)
             throw new InvalidDataException(validation.CombinedOutput);
 
@@ -693,6 +783,21 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         Profiles.Clear();
         foreach (var profile in profiles)
             Profiles.Add(profile);
+    }
+
+    private async Task<string> PrepareProfileConfigurationAsync(
+        Profile profile,
+        string configuration,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var parsed = configService.Parse(configuration);
+        if (profile.Source != ProfileSource.ImportedFile)
+            parsed = configService.ApplyRuntimeOptions(parsed, settings);
+        return await customRoutingService.ApplyAsync(
+            profile.Id,
+            configService.Serialize(parsed),
+            cancellationToken);
     }
 
     private async Task ClearProfileSelectionAsync(CancellationToken cancellationToken)
@@ -723,6 +828,26 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         ConfigurationText = value;
         suppressConfigurationDirty = false;
         IsConfigurationDirty = isDirty;
+        RefreshClashApiConnection(value);
+    }
+
+    private void RefreshClashApiConnection(string configuration)
+    {
+        try
+        {
+            clashApiConnection = string.IsNullOrWhiteSpace(configuration)
+                ? null
+                : configService.GetClashApiConnection(configuration);
+            supportsStandardRoutingModes = !string.IsNullOrWhiteSpace(configuration)
+                                           && configService.SupportsStandardRoutingModes(configuration);
+        }
+        catch (InvalidDataException)
+        {
+            clashApiConnection = null;
+            supportsStandardRoutingModes = false;
+        }
+        OnPropertyChanged(nameof(HasClashApi));
+        OnPropertyChanged(nameof(CanChangeRoutingMode));
     }
 
     private async Task<string> NormalizeSubscriptionConfigurationAsync(
@@ -804,14 +929,19 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         StopTrafficMonitor();
         await singBox.RestartAsync(
             paths.GetProfileConfigPath(profile),
+            profile.WorkingDirectory,
             cancellationToken);
-        await ApplyRoutingModeToCoreAsync(cancellationToken);
-        StartTrafficMonitor();
+        if (HasClashApi)
+        {
+            if (supportsStandardRoutingModes)
+                await ApplyRoutingModeToCoreAsync(cancellationToken);
+            StartTrafficMonitor();
+        }
     }
 
     private async Task ApplyRoutingModeToCoreAsync(CancellationToken cancellationToken)
     {
-        using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
+        using var client = CreateClashApiClient();
         for (var attempt = 0; ; attempt++)
         {
             try
@@ -888,7 +1018,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             {
                 try
                 {
-                    using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
+                    using var client = CreateClashApiClient();
                     var progress = new Progress<TrafficSnapshot>(snapshot => Dispatcher.UIThread.Post(() =>
                     {
                         uploadBytesPerSecond = snapshot.UploadBytesPerSecond;

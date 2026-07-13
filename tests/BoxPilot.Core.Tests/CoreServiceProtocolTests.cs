@@ -15,6 +15,7 @@ public sealed class CoreServiceProtocolTests
             RequestId = 42,
             Command = "start",
             Configuration = "{\"tag\":\"日本节点\"}",
+            WorkingDirectory = "/configuration/assets",
             State = CoreState.Starting,
         };
         await using var stream = new MemoryStream();

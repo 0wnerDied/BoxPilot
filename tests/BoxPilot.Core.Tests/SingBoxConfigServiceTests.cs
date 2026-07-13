@@ -273,6 +273,33 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
         Assert.Equal("provider-direct", rules[1]?["outbound"]?.ToString());
     }
 
+    [Fact]
+    public void ReadsNativeClashApiAndStandardModeCapabilities()
+    {
+        const string configuration = """
+            {
+              "route": {
+                "rules": [
+                  { "clash_mode": "direct", "action": "route", "outbound": "direct" },
+                  { "clash_mode": "global", "action": "route", "outbound": "Proxy" }
+                ]
+              },
+              "experimental": {
+                "clash_api": {
+                  "external_controller": "0.0.0.0:19090",
+                  "secret": "native-secret"
+                }
+              }
+            }
+            """;
+
+        var connection = service.GetClashApiConnection(configuration);
+
+        Assert.Equal(19090, connection?.Port);
+        Assert.Equal("native-secret", connection?.Secret);
+        Assert.True(service.SupportsStandardRoutingModes(configuration));
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

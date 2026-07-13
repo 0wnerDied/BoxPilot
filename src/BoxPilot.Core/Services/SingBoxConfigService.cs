@@ -44,6 +44,39 @@ public sealed class SingBoxConfigService(
         return Serialize(Parse(configuration));
     }
 
+    public ClashApiConnection? GetClashApiConnection(string configuration)
+    {
+        var parsed = Parse(configuration);
+        var clashApi = parsed["experimental"]?["clash_api"] as JsonObject;
+        var controller = clashApi?["external_controller"]?.ToString();
+        if (controller?.StartsWith(':') == true)
+            controller = "127.0.0.1" + controller;
+        if (string.IsNullOrWhiteSpace(controller)
+            || !Uri.TryCreate($"http://{controller}", UriKind.Absolute, out var endpoint)
+            || endpoint.Port is <= 0 or > 65_535)
+        {
+            return null;
+        }
+
+        return new ClashApiConnection(
+            endpoint.Port,
+            clashApi?["secret"]?.ToString() ?? string.Empty);
+    }
+
+    public bool SupportsStandardRoutingModes(string configuration)
+    {
+        var parsed = Parse(configuration);
+        if (parsed["route"]?["rules"] is not JsonArray rules)
+            return false;
+
+        var modes = rules.OfType<JsonObject>()
+            .Select(static rule => rule["clash_mode"]?.ToString())
+            .Where(static mode => !string.IsNullOrWhiteSpace(mode))
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return modes.Contains("direct") && modes.Contains("global");
+    }
+
     public JsonObject PrepareManagedSubscription(
         JsonObject configuration,
         string cacheId,
@@ -66,6 +99,45 @@ public sealed class SingBoxConfigService(
         string configuration,
         CancellationToken cancellationToken = default)
     {
+        return await ValidateAsync(configuration, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<string> MergeAsync(
+        IReadOnlyList<string> configurationPaths,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configurationPaths);
+        if (configurationPaths.Count == 0)
+            throw new ArgumentException("At least one configuration is required.", nameof(configurationPaths));
+
+        paths.EnsureCreated();
+        var temporaryPath = Path.Combine(paths.RuntimeDirectory, $"merge-{Guid.NewGuid():N}.json");
+        try
+        {
+            var result = await singBoxService.MergeAsync(
+                    configurationPaths,
+                    temporaryPath,
+                    workingDirectory,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (!result.IsSuccess)
+                throw new InvalidDataException(result.CombinedOutput);
+            return await Utf8Text.ReadAllTextAsync(temporaryPath, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
+    }
+
+    public async Task<CommandResult> ValidateAsync(
+        string configuration,
+        string? workingDirectory,
+        CancellationToken cancellationToken = default)
+    {
         var normalized = FormatJson(configuration);
         paths.EnsureCreated();
         var temporaryPath = Path.Combine(paths.RuntimeDirectory, $"validate-{Guid.NewGuid():N}.json");
@@ -74,7 +146,11 @@ public sealed class SingBoxConfigService(
         {
             await AtomicFile.WriteAllTextAsync(temporaryPath, normalized, cancellationToken)
                 .ConfigureAwait(false);
-            return await singBoxService.CheckAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+            return await singBoxService.CheckAsync(
+                    temporaryPath,
+                    workingDirectory,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
