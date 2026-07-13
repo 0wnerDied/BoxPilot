@@ -15,10 +15,10 @@
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/boxpilot.png"
         Title="BoxPilot">
-  <Grid RowDefinitions="66,*,36">
+  <Grid RowDefinitions="64,*,34">
     <Border Grid.Row="0" BorderBrush="{DynamicResource CardBorderBrush}"
             BorderThickness="0,0,0,1">
-      <Grid Margin="36,0" ColumnDefinitions="Auto,42,*,Auto" VerticalAlignment="Stretch">
+      <Grid Margin="36,0" ColumnDefinitions="Auto,42,*" VerticalAlignment="Stretch">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <Border Width="30" Height="30" CornerRadius="4"
                   Background="{DynamicResource PrimaryActionBrush}">
@@ -26,7 +26,8 @@
                        FontSize="16" FontWeight="SemiBold"
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <TextBlock Text="{DynamicResource AppName}" FontSize="17" FontWeight="SemiBold"
+          <TextBlock Text="{DynamicResource AppName}" Classes="brand"
+                     FontSize="17" FontWeight="SemiBold"
                      VerticalAlignment="Center" />
         </StackPanel>
 
@@ -51,24 +52,11 @@
                   Content="{DynamicResource NavSettings}"
                   Command="{Binding NavigateCommand}" CommandParameter="settings" />
         </StackPanel>
-
-        <Border Grid.Column="3" BorderBrush="{DynamicResource CardBorderBrush}"
-                BorderThickness="1" CornerRadius="999" Padding="12,6"
-                VerticalAlignment="Center">
-          <StackPanel Orientation="Horizontal" Spacing="7">
-            <Grid Width="7" Height="7" VerticalAlignment="Center">
-              <Ellipse Fill="{DynamicResource FaintTextBrush}" Opacity="0.5" />
-              <Ellipse Fill="{DynamicResource SuccessBrush}"
-                       IsVisible="{Binding Session.IsCoreRunning}" />
-            </Grid>
-            <TextBlock Text="{Binding Session.CoreStateDisplay}" FontSize="13" />
-          </StackPanel>
-        </Border>
       </Grid>
     </Border>
 
     <TransitioningContentControl Grid.Row="1" Content="{Binding CurrentPage}"
-                                 Margin="46,30,46,22">
+                                 Margin="42,24,42,18">
       <TransitioningContentControl.PageTransition>
         <CrossFade Duration="0:0:0.16" />
       </TransitioningContentControl.PageTransition>
@@ -91,7 +79,7 @@
     <ItemsControl x:Name="ToastRegion" Grid.RowSpan="3"
                   ItemsSource="{Binding Session.Toast.Items}"
                   HorizontalAlignment="Right" VerticalAlignment="Top"
-                  Width="420" Margin="0,82,36,0" ZIndex="100"
+                  Width="420" Margin="0,76,36,0" ZIndex="100"
                   IsHitTestVisible="False">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>

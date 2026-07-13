@@ -139,11 +139,11 @@ public sealed partial class ProxyNodeItemViewModel : ViewModelBase
             _ => $"{Delay} ms",
         };
 
-    public bool HasFastDelay => !IsTesting && Delay is > 0 and < 300;
+    public bool HasFastDelay => !IsTesting && Delay is > 0 and < 100;
 
-    public bool HasMediumDelay => !IsTesting && Delay is >= 300 and < 800;
+    public bool HasMediumDelay => !IsTesting && Delay is >= 100 and <= 250;
 
-    public bool HasSlowDelay => !IsTesting && Delay is 0 or >= 800;
+    public bool HasSlowDelay => !IsTesting && Delay is 0 or > 250;
 
     [RelayCommand]
     private Task SelectAsync()

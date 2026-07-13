@@ -5,34 +5,27 @@
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.LogsView"
              x:DataType="vm:LogsViewModel">
-  <Grid RowDefinitions="Auto,14,Auto,14,*">
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-      <StackPanel>
-        <TextBlock Text="{DynamicResource LogsTitle}" Classes="page-title" />
-      </StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12"
-                  VerticalAlignment="Bottom" Margin="0,0,0,2">
-        <CheckBox Content="{DynamicResource AutoScroll}" IsChecked="{Binding AutoScroll}" />
-        <Button Classes="ghost" Content="{DynamicResource Clear}" Command="{Binding ClearCommand}" />
-      </StackPanel>
-    </Grid>
-
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-      <TextBox Text="{Binding SearchText}" PlaceholderText="{DynamicResource SearchLogs}"
-               MinHeight="38" />
-      <TextBlock Grid.Column="1" Text="{Binding ResultCount}" Classes="faint"
+  <Grid RowDefinitions="Auto,14,*">
+    <Grid ColumnDefinitions="Auto,28,*,Auto,Auto,Auto" ColumnSpacing="10">
+      <TextBlock Text="{DynamicResource LogsTitle}" Classes="page-title"
                  VerticalAlignment="Center" />
+      <TextBox Grid.Column="2" Text="{Binding SearchText}"
+               PlaceholderText="{DynamicResource SearchLogs}" />
+      <TextBlock Grid.Column="3" Text="{Binding ResultCount}"
+                 Classes="faint numeric" VerticalAlignment="Center" />
+      <CheckBox Grid.Column="4" Content="{DynamicResource AutoScroll}"
+                IsChecked="{Binding AutoScroll}" VerticalAlignment="Center" />
+      <Button Grid.Column="5" Classes="ghost" Content="{DynamicResource Clear}"
+              Command="{Binding ClearCommand}" />
     </Grid>
 
-    <Border Grid.Row="4" Classes="dark-panel" Padding="0">
+    <Border Grid.Row="2" Classes="dark-panel" Padding="0">
       <Grid RowDefinitions="40,1,*">
-        <Grid Margin="16,0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+        <Grid Margin="16,0" ColumnDefinitions="Auto,*" ColumnSpacing="10"
               VerticalAlignment="Center">
           <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}" />
-          <TextBlock Grid.Column="1" Text="{DynamicResource LiveOutput}" Classes="dark-muted"
-                     FontSize="12" LetterSpacing="0.8" />
-          <TextBlock Grid.Column="2" Text="{Binding ResultCount}"
-                     Classes="dark-muted" FontSize="12" />
+          <TextBlock Grid.Column="1" Text="{DynamicResource LiveOutput}"
+                     Classes="dark-muted" FontSize="12" LetterSpacing="0.8" />
         </Grid>
         <Border Grid.Row="1" Background="#28FFFFFF" />
         <ListBox Grid.Row="2" x:Name="LogList" Classes="log-list"
@@ -48,7 +41,7 @@
                       Classes.fatal="{Binding IsFatal}">
                 <Grid ColumnDefinitions="72,58,*" ColumnSpacing="10" Margin="12,5">
                   <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
-                             Foreground="#8E857A" />
+                             Foreground="#8E857A" FontFeatures="tnum" />
                   <TextBlock Grid.Column="1" Text="{Binding LevelLabel}" Classes="log-level"
                              Classes.system="{Binding IsSystem}"
                              Classes.trace="{Binding IsTrace}"

@@ -10,14 +10,14 @@
         Title="{DynamicResource AboutTitle}">
   <Grid Margin="30" RowDefinitions="Auto,18,Auto,*,Auto">
     <StackPanel Orientation="Horizontal" Spacing="16">
-      <Border Width="52" Height="52" CornerRadius="8"
+      <Border Width="52" Height="52" CornerRadius="10"
               Background="{DynamicResource PrimaryActionBrush}">
         <TextBlock Text="B" Foreground="{DynamicResource ActionForegroundBrush}"
                    FontSize="27" FontWeight="SemiBold"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
       </Border>
       <StackPanel VerticalAlignment="Center" Spacing="5">
-        <TextBlock Text="{DynamicResource AppName}" FontSize="24"
+        <TextBlock Text="{DynamicResource AppName}" Classes="brand" FontSize="24"
                    FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Text="{DynamicResource Version}" Classes="muted" FontSize="13" />

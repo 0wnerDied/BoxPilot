@@ -5,36 +5,22 @@
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.ConfigurationView"
              x:DataType="vm:ConfigurationViewModel">
-  <Grid RowDefinitions="Auto,18,Auto,12,Auto,10,*">
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="24">
-      <StackPanel>
-        <TextBlock Text="{DynamicResource ConfigurationTitle}" Classes="page-title" />
-      </StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9"
-                  VerticalAlignment="Bottom" Margin="0,0,0,2">
-        <Button Classes="ghost" Content="{DynamicResource Format}"
-                Command="{Binding FormatCommand}" IsEnabled="{Binding !Session.IsBusy}" />
-        <Button Classes="ghost" Content="{DynamicResource Validate}"
-                Command="{Binding ValidateCommand}" IsEnabled="{Binding !Session.IsBusy}" />
-        <Button Classes="primary" Content="{DynamicResource Save}"
-                Command="{Binding SaveCommand}" IsEnabled="{Binding !Session.IsBusy}" />
-      </StackPanel>
-    </Grid>
+  <Grid RowDefinitions="Auto,18,Auto,14,*">
+    <TextBlock Text="{DynamicResource ConfigurationTitle}" Classes="page-title" />
 
-    <Border Grid.Row="2" Classes="panel" Padding="0">
-      <Grid RowDefinitions="Auto,1,Auto,1,Auto">
-        <Grid Margin="16,12" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+    <Border Grid.Row="2" Classes="panel" Padding="16">
+      <Grid RowDefinitions="Auto,12,Auto,Auto">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
           <StackPanel Spacing="3">
             <TextBlock Text="{DynamicResource CustomRouting}" Classes="section-title" />
             <TextBlock Text="{DynamicResource CustomRoutingHint}" Classes="muted"
                        FontSize="13" />
           </StackPanel>
           <TextBlock Grid.Column="1" Text="{Binding Session.CustomRuleSets.Count}"
-                     Classes="faint" VerticalAlignment="Center" />
+                     Classes="faint numeric" VerticalAlignment="Center" />
         </Grid>
-        <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
-        <Grid Grid.Row="2" Margin="16,10" ColumnDefinitions="210,Auto,*,Auto"
-              ColumnSpacing="9">
+
+        <Grid Grid.Row="2" ColumnDefinitions="210,Auto,*,Auto" ColumnSpacing="9">
           <ComboBox ItemsSource="{Binding Session.RoutingOutbounds}"
                     SelectedItem="{Binding SelectedRoutingOutbound}"
                     PlaceholderText="{DynamicResource RouteTarget}"
@@ -57,24 +43,28 @@
                   Command="{Binding AddRemoteRuleSetCommand}"
                   IsEnabled="{Binding Session.CanManageRuleSets}" />
         </Grid>
-        <Border Grid.Row="3" Background="{DynamicResource CardBorderBrush}" />
-        <ScrollViewer Grid.Row="4" MaxHeight="104"
+
+        <ScrollViewer Grid.Row="3" MaxHeight="104" Margin="0,8,0,0"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
           <ItemsControl ItemsSource="{Binding Session.CustomRuleSets}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:CustomRuleSet">
-                <Grid Margin="16,8" ColumnDefinitions="*,180,Auto" ColumnSpacing="12">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Format}" Classes="muted" FontSize="13" />
-                  </StackPanel>
-                  <TextBlock Grid.Column="1" Text="{Binding Outbound}" Classes="muted"
-                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                  <Button Grid.Column="2" Classes="danger" Content="{DynamicResource Delete}"
-                          Click="RemoveRuleSetClicked" Padding="11,7" />
-                </Grid>
+                <Border Background="{DynamicResource SurfaceSubtleBrush}"
+                        CornerRadius="8" Margin="0,3" Padding="12,8">
+                  <Grid ColumnDefinitions="*,180,Auto" ColumnSpacing="12">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Format}" Classes="muted" FontSize="12" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding Outbound}" Classes="muted"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="2" Classes="danger compact"
+                            Content="{DynamicResource Delete}"
+                            Click="RemoveRuleSetClicked" />
+                  </Grid>
+                </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -82,34 +72,47 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="4" Classes="soft-panel" Padding="12,9">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="{Binding Session.SelectedProfile.Name, FallbackValue=—}"
-                     FontWeight="SemiBold" />
-          <TextBlock Text="{DynamicResource ConfigurationValidationLabel}"
-                     Classes="faint" FontSize="13" VerticalAlignment="Center" />
-        </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                    IsVisible="{Binding Session.IsConfigurationDirty}">
-          <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}"
-                   VerticalAlignment="Center" />
-          <TextBlock Text="{DynamicResource UnsavedChanges}" Classes="muted" FontSize="13" />
-        </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                    IsVisible="{Binding !Session.IsConfigurationDirty}">
-          <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}"
-                   VerticalAlignment="Center" />
-          <TextBlock Text="{DynamicResource ChangesSaved}" Classes="muted" FontSize="13" />
-        </StackPanel>
+    <Border Grid.Row="4" Classes="workspace">
+      <Grid RowDefinitions="52,*">
+        <Grid Margin="16,0" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+              ColumnSpacing="8" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{Binding Session.SelectedProfile.Name, FallbackValue=—}"
+                       FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource ConfigurationValidationLabel}"
+                       Classes="faint" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                      IsVisible="{Binding Session.IsConfigurationDirty}">
+            <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource UnsavedChanges}" Classes="muted"
+                       FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                      IsVisible="{Binding !Session.IsConfigurationDirty}">
+            <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource ChangesSaved}" Classes="muted"
+                       FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <Button Grid.Column="2" Classes="ghost compact" Content="{DynamicResource Format}"
+                  Command="{Binding FormatCommand}" IsEnabled="{Binding !Session.IsBusy}" />
+          <Button Grid.Column="3" Classes="ghost compact" Content="{DynamicResource Validate}"
+                  Command="{Binding ValidateCommand}" IsEnabled="{Binding !Session.IsBusy}" />
+          <Button Grid.Column="4" Classes="primary compact" Content="{DynamicResource Save}"
+                  Command="{Binding SaveCommand}" IsEnabled="{Binding !Session.IsBusy}" />
+        </Grid>
+
+        <controls:CodeEditor Grid.Row="1" Classes="embedded-editor" Language="Json"
+                             Value="{Binding Session.ConfigurationText, Mode=TwoWay}"
+                             ShowLineNumbers="True" WordWrap="False"
+                             Placeholder="{DynamicResource JsonPlaceholder}"
+                             HorizontalScrollBarVisibility="Auto"
+                             VerticalScrollBarVisibility="Auto" />
       </Grid>
     </Border>
-
-    <controls:CodeEditor Grid.Row="6" Language="Json"
-                         Value="{Binding Session.ConfigurationText, Mode=TwoWay}"
-                         ShowLineNumbers="True" WordWrap="False"
-                         Placeholder="{DynamicResource JsonPlaceholder}"
-                         HorizontalScrollBarVisibility="Auto"
-                         VerticalScrollBarVisibility="Auto" />
   </Grid>
 </UserControl>

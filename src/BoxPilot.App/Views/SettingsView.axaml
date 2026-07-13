@@ -4,85 +4,123 @@
              x:Class="BoxPilot.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-    <Grid RowDefinitions="Auto,24,Auto">
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-        <StackPanel>
-          <TextBlock Text="{DynamicResource SettingsTitle}" Classes="page-title" />
-        </StackPanel>
+    <Grid RowDefinitions="Auto,18,Auto" Margin="0,0,0,4">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{DynamicResource SettingsTitle}" Classes="page-title"
+                   VerticalAlignment="Center" />
         <Button Grid.Column="1" Classes="primary" Content="{DynamicResource SaveSettings}"
-                Command="{Binding SaveCommand}" IsEnabled="{Binding !Session.IsBusy}"
-                VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                Command="{Binding SaveCommand}" IsEnabled="{Binding !Session.IsBusy}" />
       </Grid>
 
-      <Border Grid.Row="2" Classes="panel" Padding="0">
-        <Grid ColumnDefinitions="0.8*,1,1.2*">
-          <StackPanel Grid.Column="0" Margin="24" Spacing="13">
-            <TextBlock Text="{DynamicResource Appearance}" Classes="section-title" />
-            <TextBlock Text="{DynamicResource Theme}" Classes="muted" FontSize="13" />
-            <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}">
-              <ComboBox.ItemTemplate>
-                <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Text="{DynamicResource Language}" Classes="muted"
-                       FontSize="13" Margin="0,5,0,0" />
-            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}">
-              <ComboBox.ItemTemplate>
-                <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-            <Separator Margin="0,8" />
-            <TextBlock Text="{DynamicResource LaunchSettings}" Classes="section-title" />
-            <ToggleSwitch Content="{DynamicResource StartOnLaunch}"
-                          IsChecked="{Binding StartCoreOnLaunch}" />
-            <ToggleSwitch Content="{DynamicResource CloseToTray}"
-                          IsChecked="{Binding CloseToTray}" />
-            <Button Classes="ghost" Content="{DynamicResource DataDirectory}"
-                    Command="{Binding OpenDataDirectoryCommand}" HorizontalAlignment="Left"
-                    Margin="0,6,0,0" />
-          </StackPanel>
+      <Grid Grid.Row="2" ColumnDefinitions="0.82*,1.18*" ColumnSpacing="14">
+        <StackPanel Spacing="14">
+          <Border Classes="panel">
+            <StackPanel Spacing="14">
+              <TextBlock Text="{DynamicResource Appearance}" Classes="section-title" />
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="{DynamicResource Theme}" Classes="field-label" />
+                  <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="5">
+                  <TextBlock Text="{DynamicResource Language}" Classes="field-label" />
+                  <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
 
-          <Border Grid.Column="1" Background="{DynamicResource CardBorderBrush}" />
+          <Border Classes="panel">
+            <StackPanel Spacing="16">
+              <TextBlock Text="{DynamicResource LaunchSettings}" Classes="section-title" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <TextBlock Text="{DynamicResource StartOnLaunch}"
+                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartCoreOnLaunch}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <TextBlock Text="{DynamicResource CloseToTray}"
+                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CloseToTray}" />
+              </Grid>
+              <Button Classes="ghost" Content="{DynamicResource DataDirectory}"
+                      Command="{Binding OpenDataDirectoryCommand}"
+                      HorizontalAlignment="Left" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
 
-          <StackPanel Grid.Column="2" Margin="24" Spacing="13">
+        <Border Grid.Column="1" Classes="panel">
+          <StackPanel Spacing="15">
             <TextBlock Text="{DynamicResource CoreSettings}" Classes="section-title" />
-            <TextBlock Text="{DynamicResource CorePath}" Classes="muted" FontSize="13" />
-            <TextBox Text="{Binding CorePath}" PlaceholderText="sing-box" />
+
+            <StackPanel Spacing="5">
+              <TextBlock Text="{DynamicResource CorePath}" Classes="field-label" />
+              <TextBox Text="{Binding CorePath}" PlaceholderText="sing-box" />
+            </StackPanel>
+
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-              <StackPanel Spacing="6">
-                <TextBlock Text="{DynamicResource MixedPort}" Classes="muted" FontSize="13" />
-                <NumericUpDown Value="{Binding MixedPort}" Minimum="1" Maximum="65535" />
+              <StackPanel Spacing="5">
+                <TextBlock Text="{DynamicResource MixedPort}" Classes="field-label" />
+                <NumericUpDown Classes="port-input" Value="{Binding MixedPort}"
+                               Minimum="1" Maximum="65535" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Spacing="6">
-                <TextBlock Text="{DynamicResource ApiPort}" Classes="muted" FontSize="13" />
-                <NumericUpDown Value="{Binding ApiPort}" Minimum="1" Maximum="65535" />
+              <StackPanel Grid.Column="1" Spacing="5">
+                <TextBlock Text="{DynamicResource ApiPort}" Classes="field-label" />
+                <NumericUpDown Classes="port-input" Value="{Binding ApiPort}"
+                               Minimum="1" Maximum="65535" />
               </StackPanel>
             </Grid>
-            <Separator Margin="0,7" />
-            <ToggleSwitch Content="{DynamicResource SystemProxy}"
-                          IsChecked="{Binding EnableSystemProxy}" />
-            <ToggleSwitch Content="{DynamicResource AllowLan}"
-                          IsChecked="{Binding AllowLan}" />
-            <TextBlock Text="{DynamicResource AllowLanHint}" Classes="muted"
-                       FontSize="13" TextWrapping="Wrap" />
-            <TextBlock Text="{DynamicResource CustomDns}" Classes="muted"
-                       FontSize="13" Margin="0,5,0,0" />
-            <TextBox Text="{Binding CustomDnsServer}"
-                     PlaceholderText="{DynamicResource CustomDnsHint}" />
-            <ToggleSwitch Content="{DynamicResource TunMode}" IsChecked="{Binding EnableTun}" />
-            <Border Classes="soft-panel" Margin="0,7,0,0">
-              <StackPanel Spacing="10">
+
+            <TextBlock Text="{DynamicResource Network}" Classes="section-title"
+                       Margin="0,5,0,0" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <TextBlock Text="{DynamicResource SystemProxy}"
+                         VerticalAlignment="Center" TextWrapping="Wrap" />
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableSystemProxy}" />
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <StackPanel Spacing="3">
+                <TextBlock Text="{DynamicResource AllowLan}" TextWrapping="Wrap" />
+                <TextBlock Text="{DynamicResource AllowLanHint}" Classes="muted"
+                           FontSize="13" TextWrapping="Wrap" />
+              </StackPanel>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowLan}"
+                            VerticalAlignment="Top" />
+            </Grid>
+
+            <StackPanel Spacing="5">
+              <TextBlock Text="{DynamicResource CustomDns}" Classes="field-label" />
+              <TextBox Text="{Binding CustomDnsServer}"
+                       PlaceholderText="{DynamicResource CustomDnsHint}" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <StackPanel Spacing="4">
+                <TextBlock Text="{DynamicResource TunMode}" />
                 <TextBlock Text="{DynamicResource NetworkChangesHint}" Classes="muted"
                            FontSize="13" TextWrapping="Wrap" />
-                <Button Classes="ghost" Content="{DynamicResource RemoveTunService}"
+                <Button Classes="ghost compact" Content="{DynamicResource RemoveTunService}"
                         Command="{Binding UninstallTunServiceCommand}"
                         IsVisible="{Binding Session.IsTunServiceInstalled}"
-                        HorizontalAlignment="Left" />
+                        HorizontalAlignment="Left" Margin="0,5,0,0" />
               </StackPanel>
-            </Border>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableTun}"
+                            VerticalAlignment="Top" />
+            </Grid>
           </StackPanel>
-        </Grid>
-      </Border>
+        </Border>
+      </Grid>
     </Grid>
   </ScrollViewer>
 </UserControl>

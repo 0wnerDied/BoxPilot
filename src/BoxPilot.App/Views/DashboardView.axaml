@@ -1,199 +1,248 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:BoxPilot.App.Controls"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
-  <Grid RowDefinitions="Auto,24,210,16,*">
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="20">
+  <Grid RowDefinitions="Auto,18,136,14,*">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
       <TextBlock Text="{DynamicResource NavDashboard}" Classes="page-title"
-                 VerticalAlignment="Bottom" />
-      <Border Grid.Column="1" Classes="soft-panel" Padding="5,3"
-              VerticalAlignment="Bottom" Margin="0,0,0,2">
-        <StackPanel Orientation="Horizontal" Spacing="3">
-          <RadioButton GroupName="RoutingMode" Content="{DynamicResource RuleMode}"
-                       IsChecked="{Binding IsRuleMode, Mode=OneWay}"
-                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
-                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Rule" />
-          <RadioButton GroupName="RoutingMode" Content="{DynamicResource GlobalMode}"
-                       IsChecked="{Binding IsGlobalMode, Mode=OneWay}"
-                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
-                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Global" />
-          <RadioButton GroupName="RoutingMode" Content="{DynamicResource DirectMode}"
-                       IsChecked="{Binding IsDirectMode, Mode=OneWay}"
-                       IsEnabled="{Binding Session.CanChangeRoutingMode}"
-                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Direct" />
-        </StackPanel>
+                 VerticalAlignment="Center" />
+
+      <Border Grid.Column="1" Classes="mode-switch" VerticalAlignment="Center">
+        <Grid ColumnDefinitions="72,72,72" ColumnSpacing="2">
+          <Button Classes="segment" Classes.active="{Binding IsRuleMode}"
+                  Content="{DynamicResource RuleMode}"
+                  IsEnabled="{Binding Session.CanChangeRoutingMode}"
+                  Command="{Binding SetRoutingModeCommand}" CommandParameter="Rule" />
+          <Button Grid.Column="1" Classes="segment" Classes.active="{Binding IsGlobalMode}"
+                  Content="{DynamicResource GlobalMode}"
+                  IsEnabled="{Binding Session.CanChangeRoutingMode}"
+                  Command="{Binding SetRoutingModeCommand}" CommandParameter="Global" />
+          <Button Grid.Column="2" Classes="segment" Classes.active="{Binding IsDirectMode}"
+                  Content="{DynamicResource DirectMode}"
+                  IsEnabled="{Binding Session.CanChangeRoutingMode}"
+                  Command="{Binding SetRoutingModeCommand}" CommandParameter="Direct" />
+        </Grid>
       </Border>
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="9"
-                  VerticalAlignment="Bottom" Margin="0,0,0,2">
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                  VerticalAlignment="Center">
         <Button Classes="ghost" Content="{DynamicResource Restart}"
                 Command="{Binding RestartCommand}" IsEnabled="{Binding Session.CanStopCore}"
                 IsVisible="{Binding Session.IsCoreRunning}" />
-        <Button Classes="danger" Content="{DynamicResource Stop}"
-                Command="{Binding StopCommand}" IsEnabled="{Binding Session.CanStopCore}"
-                IsVisible="{Binding Session.IsCoreRunning}" />
+        <Button Classes="ghost icon" Content="•••"
+                IsEnabled="{Binding Session.CanStopCore}"
+                IsVisible="{Binding Session.IsCoreRunning}"
+                ToolTip.Tip="{DynamicResource MoreActions}">
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="{DynamicResource Stop}" Command="{Binding StopCommand}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
         <Button Classes="primary" Content="{DynamicResource Start}"
                 Command="{Binding StartCommand}" IsEnabled="{Binding Session.CanStartCore}"
                 IsVisible="{Binding !Session.IsCoreRunning}" />
       </StackPanel>
     </Grid>
 
-    <Grid Grid.Row="2" ColumnDefinitions="1.35*,0.85*" ColumnSpacing="16">
-      <Border Classes="panel">
-        <Grid RowDefinitions="Auto,*,Auto">
-          <TextBlock Text="{DynamicResource ActiveProfile}" Classes="muted" FontSize="13" />
-          <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="7">
-            <TextBlock Text="{Binding Session.SelectedProfile.Name, FallbackValue=—}"
-                       Classes="metric" TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding Session.SelectedProfile.UpdatedAtLocal,
-                             StringFormat='{}{0:yyyy-MM-dd · HH:mm}'}"
-                       Classes="muted" FontSize="13" />
+    <Border Grid.Row="2" Classes="overview-panel">
+      <Grid ColumnDefinitions="1.8*,0.85*,1.05*,1.05*,1.35*,1.9*" ColumnSpacing="18">
+        <StackPanel VerticalAlignment="Center" Spacing="4">
+          <TextBlock Text="{DynamicResource ActiveProfile}" Classes="field-label" />
+          <TextBlock Text="{Binding Session.SelectedProfile.Name, FallbackValue=—}"
+                     FontSize="21" FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Session.SelectedProfile.UpdatedAtLocal,
+                           StringFormat='{}{0:yyyy-MM-dd · HH:mm}'}"
+                     Classes="muted numeric" FontSize="12" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="5">
+          <TextBlock Text="{DynamicResource ProxyNodes}" Classes="field-label" />
+          <TextBlock Text="{Binding Session.ActiveNodeDisplay}"
+                     Classes="numeric" FontSize="17" FontWeight="SemiBold" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="3">
+          <TextBlock Text="{DynamicResource Download}" Classes="field-label" />
+          <TextBlock Text="{Binding Session.DownloadRate}"
+                     Classes="numeric" FontSize="16" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{DynamicResource TotalTraffic}" Classes="faint"
+                       FontSize="11" />
+            <TextBlock Text="{Binding Session.DownloadTotal}" Classes="muted numeric"
+                       FontSize="11" />
           </StackPanel>
-          <Grid Grid.Row="2" ColumnDefinitions="*,1,*,1,*" ColumnSpacing="16">
-            <StackPanel Spacing="3">
-              <TextBlock Text="{DynamicResource ProxyNodes}" Classes="muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.ActiveNodeDisplay}" FontSize="16" FontWeight="SemiBold" />
-            </StackPanel>
-            <Border Grid.Column="1" Background="{DynamicResource CardBorderBrush}" />
-            <StackPanel Grid.Column="2" Spacing="3">
-              <TextBlock Text="{DynamicResource Download}" Classes="muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.DownloadRate}" FontSize="16" FontWeight="SemiBold" />
-            </StackPanel>
-            <Border Grid.Column="3" Background="{DynamicResource CardBorderBrush}" />
-            <StackPanel Grid.Column="4" Spacing="3">
-              <TextBlock Text="{DynamicResource Upload}" Classes="muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.UploadRate}" FontSize="16" FontWeight="SemiBold" />
-            </StackPanel>
-          </Grid>
-        </Grid>
-      </Border>
+        </StackPanel>
 
-      <Border Grid.Column="1" Classes="dark-panel">
-        <Grid RowDefinitions="Auto,*,1,Auto">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="{DynamicResource Status}" Classes="dark-muted" FontSize="13" />
-            <Grid Grid.Column="1" Width="7" Height="7" VerticalAlignment="Center">
-              <Ellipse Fill="{DynamicResource DarkMutedBrush}" Opacity="0.5" />
-              <Ellipse Fill="{DynamicResource SuccessBrush}"
-                       IsVisible="{Binding Session.IsCoreRunning}" />
-            </Grid>
-          </Grid>
-          <TextBlock Grid.Row="1" Text="{Binding Session.CoreStateDisplay}" Classes="on-dark"
-                     FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <Border Grid.Row="2" Background="#28FFFFFF" />
-          <Grid Grid.Row="3" ColumnDefinitions="*,*,*" ColumnSpacing="12" Margin="0,14,0,0">
-            <StackPanel Spacing="3">
-              <TextBlock Text="{DynamicResource Version}" Classes="dark-muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.CoreVersion}" Classes="on-dark" FontSize="14" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Spacing="3">
-              <TextBlock Text="{DynamicResource MixedProxy}" Classes="dark-muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.Settings.MixedPort}" Classes="on-dark" FontSize="14" />
-            </StackPanel>
-            <StackPanel Grid.Column="2" Spacing="3">
-              <TextBlock Text="TUN" Classes="dark-muted" FontSize="13" />
-              <TextBlock Text="{Binding Session.TunDisplay}" Classes="on-dark" FontSize="14" />
-            </StackPanel>
-          </Grid>
-        </Grid>
-      </Border>
-    </Grid>
+        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="3">
+          <TextBlock Text="{DynamicResource Upload}" Classes="field-label" />
+          <TextBlock Text="{Binding Session.UploadRate}"
+                     Classes="numeric" FontSize="16" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{DynamicResource TotalTraffic}" Classes="faint"
+                       FontSize="11" />
+            <TextBlock Text="{Binding Session.UploadTotal}" Classes="muted numeric"
+                       FontSize="11" />
+          </StackPanel>
+        </StackPanel>
 
-    <Border Grid.Row="4" Classes="panel" Padding="0"
-            IsVisible="{Binding ShowProxySelection}">
-      <Grid ColumnDefinitions="236,1,*">
-        <Grid RowDefinitions="64,1,*">
-          <Grid Margin="18,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-            <TextBlock Text="{DynamicResource PolicyGroups}" Classes="section-title" />
-            <TextBlock Grid.Column="1" Text="{Binding GroupCountDisplay}"
-                       Classes="faint" FontSize="13" />
+        <Border Grid.Column="4" Classes="status-tile"
+                Classes.running="{Binding Session.IsCoreRunning}">
+          <Grid RowDefinitions="Auto,*">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Grid Width="8" Height="8" VerticalAlignment="Center">
+                <Ellipse Fill="{DynamicResource FaintTextBrush}" Opacity="0.45" />
+                <Ellipse Fill="{DynamicResource SuccessBrush}"
+                         IsVisible="{Binding Session.IsCoreRunning}" />
+              </Grid>
+              <TextBlock Text="{Binding Session.CoreStateDisplay}"
+                         FontSize="17" FontWeight="SemiBold" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="9"
+                        VerticalAlignment="Bottom">
+              <TextBlock Text="{Binding Session.CoreVersion, StringFormat='v{0}'}"
+                         Classes="muted numeric" FontSize="12" />
+              <TextBlock Text="{Binding Session.Settings.MixedPort, StringFormat=':{0}'}"
+                         Classes="muted numeric" FontSize="12" />
+              <TextBlock Text="{Binding Session.TunDisplay, StringFormat='TUN {0}'}"
+                         Classes="muted" FontSize="12" />
+            </StackPanel>
           </Grid>
-          <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
-          <Grid Grid.Row="2">
-            <ListBox Classes="proxy-groups" ItemsSource="{Binding ProxyGroups}"
-                     SelectedItem="{Binding SelectedGroup}"
-                     Background="Transparent" BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:ProxyGroupItemViewModel">
-                  <Grid Margin="11,7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <StackPanel Spacing="3">
-                      <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding SelectionDisplay}" Classes="muted" FontSize="13"
-                                 TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
-                               Classes="faint" FontSize="13" VerticalAlignment="Center" />
-                  </Grid>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-            <TextBlock Text="{DynamicResource NoProxyGroups}" Classes="muted"
-                       Margin="18" TextWrapping="Wrap" TextAlignment="Center"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       IsVisible="{Binding !HasProxyGroups}" />
-          </Grid>
-        </Grid>
+        </Border>
 
-        <Border Grid.Column="1" Background="{DynamicResource CardBorderBrush}" />
-
-        <Grid Grid.Column="2" RowDefinitions="96,1,*">
-          <Grid Margin="18,12" RowDefinitions="Auto,8,Auto">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="9">
-              <StackPanel Spacing="2">
-                <TextBlock Text="{Binding SelectedGroup.DisplayName, FallbackValue=—}"
-                           Classes="section-title" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding SelectedGroup.SelectionDisplay, FallbackValue=—}"
-                           Classes="muted" FontSize="13" TextTrimming="CharacterEllipsis" />
+        <Grid Grid.Column="5" RowDefinitions="Auto,*">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Text="{DynamicResource RealtimeTraffic}" Classes="field-label" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}"
+                         VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource DownloadShort}" Classes="faint"
+                           FontSize="11" />
               </StackPanel>
-              <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource TestAll}"
-                      Command="{Binding TestAllCommand}"
-                      IsEnabled="{Binding Session.IsCoreRunning}" />
-              <Button Grid.Column="2" Classes="ghost" Content="{DynamicResource Refresh}"
-                      Command="{Binding RefreshProxiesCommand}"
-                      IsEnabled="{Binding Session.IsCoreRunning}" />
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}"
+                         VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource UploadShort}" Classes="faint"
+                           FontSize="11" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+          <controls:TrafficChart Grid.Row="1" Margin="0,8,0,0"
+                                 Samples="{Binding Session.TrafficHistory}"
+                                 DownloadStroke="{DynamicResource SuccessBrush}"
+                                 UploadStroke="{DynamicResource AccentBrush}"
+                                 GridStroke="{DynamicResource CardBorderBrush}" />
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="4" Classes="workspace"
+            IsVisible="{Binding ShowProxySelection}">
+      <Grid ColumnDefinitions="244,*">
+        <Border Background="{DynamicResource SurfaceSubtleBrush}">
+          <Grid RowDefinitions="54,*">
+            <Grid Margin="18,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+              <TextBlock Text="{DynamicResource PolicyGroups}" Classes="section-title" />
+              <TextBlock Grid.Column="1" Text="{Binding GroupCountDisplay}"
+                         Classes="faint numeric" FontSize="12" />
             </Grid>
-            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
-              <TextBox Text="{Binding SearchText}" PlaceholderText="{DynamicResource SearchNodes}"
-                       MinHeight="34" />
-              <CheckBox Grid.Column="1" Content="{DynamicResource SortByLatency}"
-                        IsChecked="{Binding SortByLatency}" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="2" Text="{Binding NodeCountDisplay}"
-                         Classes="faint" FontSize="13" VerticalAlignment="Center" />
+            <Grid Grid.Row="1">
+              <ListBox Classes="proxy-groups" ItemsSource="{Binding ProxyGroups}"
+                       SelectedItem="{Binding SelectedGroup}"
+                       Background="Transparent" BorderThickness="0"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ProxyGroupItemViewModel">
+                    <Grid Margin="11,7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding DisplayName}" FontSize="14"
+                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding SelectionDisplay}" Classes="muted"
+                                   FontSize="12" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
+                                 Classes="faint numeric" FontSize="12"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="{DynamicResource NoProxyGroups}" Classes="muted"
+                         Margin="18" TextWrapping="Wrap" TextAlignment="Center"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         IsVisible="{Binding !HasProxyGroups}" />
             </Grid>
           </Grid>
-          <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
-          <Grid Grid.Row="2">
+        </Border>
+
+        <Grid Grid.Column="1" RowDefinitions="64,*">
+          <Grid Margin="16,10" ColumnDefinitions="160,*,Auto,Auto,Auto,40"
+                ColumnSpacing="10">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="{Binding SelectedGroup.DisplayName, FallbackValue=—}"
+                         FontSize="15" FontWeight="SemiBold"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding SelectedGroup.SelectionDisplay, FallbackValue=—}"
+                         Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding SearchText}"
+                     PlaceholderText="{DynamicResource SearchNodes}" />
+            <CheckBox Grid.Column="2" Content="{DynamicResource SortByLatency}"
+                      IsChecked="{Binding SortByLatency}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="3" Text="{Binding NodeCountDisplay}"
+                       Classes="faint numeric" FontSize="12" VerticalAlignment="Center" />
+            <Button Grid.Column="4" Classes="primary"
+                    Content="{DynamicResource TestAll}"
+                    Command="{Binding TestAllCommand}"
+                    IsEnabled="{Binding Session.IsCoreRunning}" />
+            <Button Grid.Column="5" Classes="ghost icon" Content="↻"
+                    Command="{Binding RefreshProxiesCommand}"
+                    IsEnabled="{Binding Session.IsCoreRunning}"
+                    ToolTip.Tip="{DynamicResource Refresh}" />
+          </Grid>
+
+          <Grid Grid.Row="1">
             <ListBox Classes="node-list" ItemsSource="{Binding VisibleNodes}"
                      Background="Transparent" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProxyNodeItemViewModel">
                   <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
-                    <Grid ColumnDefinitions="*,44">
+                    <Grid ColumnDefinitions="*,64">
                       <Button Classes="node-select" Command="{Binding SelectCommand}"
                               IsEnabled="{Binding CanApplySelection}">
-                        <Grid ColumnDefinitions="18,*,96" ColumnSpacing="10">
-                          <Grid Width="10" Height="10" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="14,*,72" ColumnSpacing="10">
+                          <Grid Width="9" Height="9" VerticalAlignment="Center">
                             <Ellipse Fill="{DynamicResource CardBorderBrush}" />
                             <Ellipse Fill="{DynamicResource AccentBrush}"
                                      IsVisible="{Binding IsSelected}" />
                           </Grid>
                           <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="{Binding Name}" FontSize="15"
-                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding TypeDisplay}" Classes="muted" FontSize="13" />
+                            <TextBlock Text="{Binding Name}" FontSize="14"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding TypeDisplay}" Classes="muted"
+                                       FontSize="12" />
                           </StackPanel>
-                          <TextBlock Grid.Column="2" Text="{Binding DelayDisplay}"
-                                     Classes="node-delay"
-                                     Classes.fast="{Binding HasFastDelay}"
-                                     Classes.medium="{Binding HasMediumDelay}"
-                                     Classes.slow="{Binding HasSlowDelay}"
-                                     HorizontalAlignment="Right" VerticalAlignment="Center" />
+                          <Border Grid.Column="2" Classes="delay-badge"
+                                  Classes.fast="{Binding HasFastDelay}"
+                                  Classes.medium="{Binding HasMediumDelay}"
+                                  Classes.slow="{Binding HasSlowDelay}"
+                                  VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DelayDisplay}" Classes="node-delay"
+                                       Classes.fast="{Binding HasFastDelay}"
+                                       Classes.medium="{Binding HasMediumDelay}"
+                                       Classes.slow="{Binding HasSlowDelay}"
+                                       HorizontalAlignment="Center" />
+                          </Border>
                         </Grid>
                       </Button>
-                      <Button Grid.Column="1" Classes="node-test" Content="↻"
+                      <Button Grid.Column="1" Classes="node-test"
+                              Content="{DynamicResource TestNode}"
                               Command="{Binding TestCommand}"
                               IsEnabled="{Binding !IsTesting}"
                               ToolTip.Tip="{DynamicResource Latency}" />

@@ -4,41 +4,38 @@
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.ToolsView"
              x:DataType="vm:ToolsViewModel">
-  <Grid RowDefinitions="Auto,24,Auto,14,*">
-    <StackPanel Grid.Row="0">
-      <TextBlock Text="{DynamicResource ToolsTitle}" Classes="page-title" />
-    </StackPanel>
+  <Grid RowDefinitions="Auto,18,Auto,14,*">
+    <TextBlock Text="{DynamicResource ToolsTitle}" Classes="page-title" />
 
-    <Border Grid.Row="2" Classes="panel">
-      <Grid RowDefinitions="Auto,12,Auto" ColumnDefinitions="*">
+    <Border Grid.Row="2" Classes="panel" Padding="16">
+      <Grid RowDefinitions="Auto,10,Auto">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-          <controls:CodeEditor Classes="command-editor" Language="Console"
-                               Value="{Binding CommandText, Mode=TwoWay}"
-                               Placeholder="{DynamicResource CommandHint}"
-                               ShowLineNumbers="False" WordWrap="False"
-                               HorizontalScrollBarVisibility="Hidden"
-                               VerticalScrollBarVisibility="Hidden">
-            <controls:CodeEditor.KeyBindings>
-              <KeyBinding Gesture="Enter" Command="{Binding RunCommand}" />
-            </controls:CodeEditor.KeyBindings>
-          </controls:CodeEditor>
+          <Border Classes="command-frame">
+            <TextBox Classes="command-input" Text="{Binding CommandText, Mode=TwoWay}"
+                     PlaceholderText="{DynamicResource CommandHint}">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding RunCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </Border>
           <Button Grid.Column="1" Classes="primary" Content="{DynamicResource RunCommand}"
                   Command="{Binding RunCommand}" IsEnabled="{Binding !Session.IsBusy}" />
         </Grid>
         <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="12">
-          <TextBlock Text="{DynamicResource CommandPresets}" Classes="muted"
-                     FontSize="12" VerticalAlignment="Center" />
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7">
-            <Button Classes="ghost" Content="version" Command="{Binding UseCommandCommand}"
-                    CommandParameter="version" Padding="10,6" />
-            <Button Classes="ghost" Content="generate rand" Command="{Binding UseCommandCommand}"
-                    CommandParameter="generate rand --hex 32" Padding="10,6" />
-            <Button Classes="ghost" Content="generate uuid" Command="{Binding UseCommandCommand}"
-                    CommandParameter="generate uuid" Padding="10,6" />
-            <Button Classes="ghost" Content="rule-set" Command="{Binding UseCommandCommand}"
-                    CommandParameter="rule-set --help" Padding="10,6" />
-            <Button Classes="ghost" Content="tools" Command="{Binding UseCommandCommand}"
-                    CommandParameter="tools --help" Padding="10,6" />
+          <TextBlock Text="{DynamicResource CommandPresets}" Classes="field-label"
+                     VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+            <Button Classes="ghost chip" Content="version"
+                    Command="{Binding UseCommandCommand}" CommandParameter="version" />
+            <Button Classes="ghost chip" Content="generate rand"
+                    Command="{Binding UseCommandCommand}"
+                    CommandParameter="generate rand --hex 32" />
+            <Button Classes="ghost chip" Content="generate uuid"
+                    Command="{Binding UseCommandCommand}" CommandParameter="generate uuid" />
+            <Button Classes="ghost chip" Content="rule-set"
+                    Command="{Binding UseCommandCommand}" CommandParameter="rule-set --help" />
+            <Button Classes="ghost chip" Content="tools"
+                    Command="{Binding UseCommandCommand}" CommandParameter="tools --help" />
           </StackPanel>
         </Grid>
       </Grid>
@@ -52,8 +49,8 @@
           <TextBlock Grid.Column="1" Text="sing-box" Classes="dark-muted" FontSize="12" />
         </Grid>
         <Border Grid.Row="1" Background="#28FFFFFF" />
-        <controls:CodeEditor Grid.Row="2" Classes="console-output" Language="Console"
-                             Value="{Binding Output}" IsReadOnly="True"
+        <controls:CodeEditor Grid.Row="2" Classes="console-output embedded-editor"
+                             Language="Console" Value="{Binding Output}" IsReadOnly="True"
                              ShowLineNumbers="False" WordWrap="False"
                              HorizontalScrollBarVisibility="Auto"
                              VerticalScrollBarVisibility="Auto" />
