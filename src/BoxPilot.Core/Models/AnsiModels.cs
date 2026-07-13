@@ -9,10 +9,7 @@ public readonly record struct AnsiTextStyle(
     bool Faint,
     bool Italic,
     bool Underline,
-    bool Inverse)
-{
-    public static AnsiTextStyle Default { get; } = new();
-}
+    bool Inverse);
 
 public sealed record AnsiTextSpan(int Start, int Length, AnsiTextStyle Style);
 

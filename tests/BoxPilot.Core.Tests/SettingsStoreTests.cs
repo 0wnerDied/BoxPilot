@@ -5,12 +5,12 @@ namespace BoxPilot.Core.Tests;
 
 public sealed class SettingsStoreTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"boxpilot-tests-{Guid.NewGuid():N}");
+    private readonly TemporaryDirectory directory = new();
 
     [Fact]
     public async Task FirstLoadCreatesPersistentApiSecret()
     {
-        var store = new SettingsStore(new AppPaths(root));
+        var store = new SettingsStore(new AppPaths(directory.Path));
 
         var first = await store.LoadAsync();
         var second = await store.LoadAsync();
@@ -23,7 +23,6 @@ public sealed class SettingsStoreTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(root))
-            Directory.Delete(root, true);
+        directory.Dispose();
     }
 }

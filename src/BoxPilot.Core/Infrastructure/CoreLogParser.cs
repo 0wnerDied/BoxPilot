@@ -2,7 +2,7 @@ using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Infrastructure;
 
-public static class CoreLogParser
+internal static class CoreLogParser
 {
     public static CoreLogEntry Parse(
         DateTimeOffset timestamp,

@@ -14,6 +14,9 @@ public partial class DashboardViewModel(
 {
     private const int DelayTestConcurrency = 12;
     private const int DelayTestTimeoutMilliseconds = 8_000;
+    private bool isRefreshingProxies;
+    private bool isTestingGroup;
+    private bool isSwitchingNode;
 
     public AppSessionViewModel Session { get; } = session;
 
@@ -29,15 +32,6 @@ public partial class DashboardViewModel(
 
     [ObservableProperty]
     public partial bool SortByLatency { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsRefreshingProxies { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsTestingGroup { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsSwitchingNode { get; private set; }
 
     public bool HasProxyGroups => ProxyGroups.Count > 0;
 
@@ -57,34 +51,22 @@ public partial class DashboardViewModel(
     }
 
     [RelayCommand]
-    private async Task StartAsync()
-    {
-        await Session.StartCoreAsync();
-        await RefreshWhenRunningAsync();
-    }
+    private Task StartAsync() => Session.StartCoreAsync();
 
     [RelayCommand]
-    private async Task StopAsync()
-    {
-        await Session.StopCoreAsync();
-        ClearProxies();
-    }
+    private Task StopAsync() => Session.StopCoreAsync();
 
     [RelayCommand]
-    private async Task RestartAsync()
-    {
-        await Session.RestartCoreAsync();
-        await RefreshWhenRunningAsync();
-    }
+    private Task RestartAsync() => Session.RestartCoreAsync();
 
     [RelayCommand]
     public async Task RefreshProxiesAsync()
     {
-        if (!Session.IsCoreRunning || IsRefreshingProxies)
+        if (!Session.IsCoreRunning || isRefreshingProxies)
             return;
 
         var previousGroup = SelectedGroup?.Name;
-        IsRefreshingProxies = true;
+        isRefreshingProxies = true;
         try
         {
             using var client = CreateApiClient();
@@ -112,21 +94,21 @@ public partial class DashboardViewModel(
         }
         finally
         {
-            IsRefreshingProxies = false;
+            isRefreshingProxies = false;
         }
     }
 
     [RelayCommand]
     private async Task TestAllAsync()
     {
-        if (SelectedGroup is null || IsTestingGroup || !Session.IsCoreRunning)
+        if (SelectedGroup is null || isTestingGroup || !Session.IsCoreRunning)
             return;
 
         var nodes = SelectedGroup.Nodes.Where(static node => !node.IsGroup).ToArray();
         if (nodes.Length == 0)
             return;
 
-        IsTestingGroup = true;
+        isTestingGroup = true;
         foreach (var node in nodes)
             node.IsTesting = true;
 
@@ -169,7 +151,7 @@ public partial class DashboardViewModel(
         {
             foreach (var node in nodes)
                 node.IsTesting = false;
-            IsTestingGroup = false;
+            isTestingGroup = false;
         }
     }
 
@@ -191,7 +173,7 @@ public partial class DashboardViewModel(
 
     private async Task SelectNodeAsync(ProxyNodeItemViewModel node)
     {
-        if (!Session.IsCoreRunning || IsSwitchingNode || node.IsSelected || !node.CanSelect)
+        if (!Session.IsCoreRunning || isSwitchingNode || node.IsSelected || !node.CanSelect)
             return;
 
         var group = ProxyGroups.FirstOrDefault(item => string.Equals(
@@ -201,7 +183,7 @@ public partial class DashboardViewModel(
         if (group is null || !group.IsSelectable)
             return;
 
-        IsSwitchingNode = true;
+        isSwitchingNode = true;
         node.IsApplying = true;
         try
         {
@@ -219,7 +201,7 @@ public partial class DashboardViewModel(
         finally
         {
             node.IsApplying = false;
-            IsSwitchingNode = false;
+            isSwitchingNode = false;
         }
     }
 
@@ -255,15 +237,6 @@ public partial class DashboardViewModel(
         return new ClashApiClient(
             Session.Settings.ClashApiPort,
             Session.Settings.ClashApiSecret);
-    }
-
-    private async Task RefreshWhenRunningAsync()
-    {
-        for (var attempt = 0; attempt < 20 && !Session.IsCoreRunning; attempt++)
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
-
-        if (Session.IsCoreRunning)
-            await RefreshProxiesAsync();
     }
 
     private static async Task<IReadOnlyList<ProxyChoice>> LoadProxyChoicesAsync(

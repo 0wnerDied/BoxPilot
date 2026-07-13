@@ -19,14 +19,16 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private readonly SingBoxConfigService configService;
     private readonly ProfileImportService profileImporter;
     private readonly LocalizationService localization;
-    private readonly ThemeService themes;
     private readonly ConcurrentQueue<CoreLogEntry> pendingLogs = new();
     private readonly ConfigurationDraftStore configurationDrafts = new();
     private readonly DispatcherTimer logFlushTimer;
     private readonly SemaphoreSlim initializationGate = new(1, 1);
     private CancellationTokenSource? trafficCancellation;
+    private long uploadBytesPerSecond;
+    private long downloadBytesPerSecond;
     private bool suppressConfigurationDirty;
     private bool suppressProfileLoad;
+    private bool initialized;
     private bool disposed;
 
     public AppSessionViewModel(
@@ -36,8 +38,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SingBoxService singBox,
         SingBoxConfigService configService,
         ProfileImportService profileImporter,
-        LocalizationService localization,
-        ThemeService themes)
+        LocalizationService localization)
     {
         this.paths = paths;
         this.settingsStore = settingsStore;
@@ -46,7 +47,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         this.configService = configService;
         this.profileImporter = profileImporter;
         this.localization = localization;
-        this.themes = themes;
 
         singBox.LogReceived += OnLogReceived;
         singBox.StateChanged += OnCoreStateChanged;
@@ -80,26 +80,9 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public partial string CoreVersion { get; private set; } = "—";
 
     [ObservableProperty]
-    public partial string CorePlatform { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string StatusMessage { get; private set; } = string.Empty;
-
-    [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
-    [ObservableProperty]
-    public partial long UploadBytesPerSecond { get; private set; }
-
-    [ObservableProperty]
-    public partial long DownloadBytesPerSecond { get; private set; }
-
-    [ObservableProperty]
-    public partial bool IsInitialized { get; private set; }
-
     public bool IsCoreRunning => CoreState == CoreState.Running;
-
-    public bool HasLogs => Logs.Count > 0;
 
     public bool CanStartCore => !IsBusy
                                 && SelectedProfile is not null
@@ -116,13 +99,11 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                                           && SelectedProfile?.Source == ProfileSource.Subscription
                                           && !string.IsNullOrWhiteSpace(SelectedProfile.SubscriptionUrl);
 
-    public string UploadRate => FormatRate(UploadBytesPerSecond);
+    public string UploadRate => FormatRate(uploadBytesPerSecond);
 
-    public string DownloadRate => FormatRate(DownloadBytesPerSecond);
+    public string DownloadRate => FormatRate(downloadBytesPerSecond);
 
-    public int ActiveNodeCount => SelectedProfile?.NodeCount ?? 0;
-
-    public string ActiveNodeDisplay => $"{ActiveNodeCount} {localization["Nodes"]}";
+    public string ActiveNodeDisplay => $"{SelectedProfile?.NodeCount ?? 0} {localization["Nodes"]}";
 
     public string CoreStateDisplay => localization[CoreState.ToString()];
 
@@ -135,32 +116,27 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         await initializationGate.WaitAsync(cancellationToken);
         try
         {
-            if (IsInitialized)
+            if (initialized)
                 return;
 
             IsBusy = true;
             Settings = await settingsStore.LoadAsync(cancellationToken);
             localization.Apply(Settings.Language);
-            themes.Apply(Settings.Theme);
-            StatusMessage = localization["Working"];
-
+            ThemeService.Apply(Settings.Theme);
             try
             {
                 var version = await singBox.InitializeAsync(Settings.SingBoxPath, cancellationToken);
-                CoreVersion = version.Version;
-                CorePlatform = version.Platform;
+                CoreVersion = version;
             }
             catch (FileNotFoundException)
             {
                 CoreVersion = localization["CoreNotFound"];
-                StatusMessage = localization["CoreNotFoundHelp"];
-                Toast.Show(StatusMessage, ToastLevel.Error);
+                Toast.Show(localization["CoreNotFoundHelp"], ToastLevel.Error);
             }
             catch (Exception exception)
             {
                 CoreVersion = localization["CoreNotFound"];
-                StatusMessage = DescribeError(exception);
-                Toast.Show(StatusMessage, ToastLevel.Error);
+                Toast.Show(DescribeError(exception), ToastLevel.Error);
             }
 
             await ReloadProfilesAsync(cancellationToken);
@@ -173,15 +149,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             else
                 await ClearProfileSelectionAsync(cancellationToken);
 
-            IsInitialized = true;
-            StatusMessage = localization["Ready"];
+            initialized = true;
             if (Settings.StartCoreOnLaunch)
                 await StartCoreAsync(cancellationToken);
         }
         finally
         {
             IsBusy = false;
-            NotifyComputedState();
             initializationGate.Release();
         }
     }
@@ -209,7 +183,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             selectedConfiguration.IsDirty);
         Settings = Settings with { SelectedProfileId = profile.Id };
         await settingsStore.SaveAsync(Settings, cancellationToken);
-        NotifyComputedState();
     }
 
     public Task StartCoreAsync(CancellationToken cancellationToken = default)
@@ -219,9 +192,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var profile = SelectedProfile
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
-            await singBox.StartAsync(profileRepository.GetConfigurationPath(profile), cancellationToken);
+            await singBox.StartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
             StartTrafficMonitor();
-            StatusMessage = localization["CoreOnline"];
         });
     }
 
@@ -231,7 +203,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
             StopTrafficMonitor();
             await singBox.StopAsync(cancellationToken);
-            StatusMessage = localization["CoreOffline"];
         });
     }
 
@@ -243,9 +214,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
             StopTrafficMonitor();
-            await singBox.RestartAsync(profileRepository.GetConfigurationPath(profile), cancellationToken);
+            await singBox.RestartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
             StartTrafficMonitor();
-            StatusMessage = localization["CoreOnline"];
         });
     }
 
@@ -254,11 +224,11 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return RunBusyAsync(async () =>
         {
             await SaveAndValidateSelectedAsync(cancellationToken);
-            StatusMessage = IsCoreRunning
+            var message = IsCoreRunning
                 ? localization["RestartToApply"]
                 : localization["ChangesSaved"];
             Toast.Show(
-                StatusMessage,
+                message,
                 IsCoreRunning ? ToastLevel.Warning : ToastLevel.Success);
         });
     }
@@ -268,7 +238,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return RunBusyAsync(() =>
         {
             SetConfigurationText(configService.FormatJson(ConfigurationText), true);
-            StatusMessage = localization["Ready"];
             return Task.CompletedTask;
         });
     }
@@ -278,12 +247,12 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return RunBusyAsync(async () =>
         {
             var result = await configService.ValidateAsync(ConfigurationText, cancellationToken);
-            StatusMessage = result.IsSuccess
+            var message = result.IsSuccess
                 ? $"✓ {localization["ConfigurationValid"]}"
                 : result.CombinedOutput;
             if (!result.IsSuccess)
                 throw new InvalidDataException(result.CombinedOutput);
-            Toast.Show(StatusMessage, ToastLevel.Success);
+            Toast.Show(message, ToastLevel.Success);
         });
     }
 
@@ -292,14 +261,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         string url,
         CancellationToken cancellationToken = default)
     {
-        ProfileImportOutcome? outcome = null;
         return RunBusyWithResultAsync(async () =>
         {
             if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var subscriptionUrl))
                 throw new ArgumentException(localization["InvalidSubscriptionUrl"], nameof(url));
             var restart = IsCoreRunning;
 
-            outcome = await profileImporter.ImportSubscriptionAsync(
+            var outcome = await profileImporter.ImportSubscriptionAsync(
                 string.IsNullOrWhiteSpace(name) ? localization["Subscription"] : name.Trim(),
                 subscriptionUrl,
                 Settings,
@@ -309,19 +277,18 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await SelectProfileAsync(imported, cancellationToken);
             if (restart)
                 await RestartCoreForProfileAsync(imported, cancellationToken);
-            StatusMessage = outcome.Warnings.Count == 0
+            var message = outcome.Warnings.Count == 0
                 ? $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]}"
                 : $"✓ {outcome.Profile.NodeCount} {localization["Nodes"]} · "
                   + $"{outcome.Warnings.Count} {localization["Warnings"]}";
-            ShowImportOutcomeToast(outcome);
+            ShowImportOutcomeToast(outcome, message);
             return outcome;
-        }, () => outcome);
+        });
     }
 
     public Task<ProfileImportOutcome?> RefreshSelectedSubscriptionAsync(
         CancellationToken cancellationToken = default)
     {
-        ProfileImportOutcome? outcome = null;
         return RunBusyWithResultAsync(async () =>
         {
             var profile = SelectedProfile
@@ -330,19 +297,19 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 throw new InvalidOperationException(localization["SaveChangesBeforeUpdate"]);
             var restart = IsCoreRunning;
 
-            outcome = await profileImporter.UpdateSubscriptionAsync(profile, Settings, cancellationToken);
+            var outcome = await profileImporter.UpdateSubscriptionAsync(profile, Settings, cancellationToken);
             await ReloadProfilesAsync(cancellationToken);
             var updated = Profiles.First(item => item.Id == profile.Id);
             await SelectProfileAsync(updated, cancellationToken);
 
             if (restart && !outcome.NotModified)
                 await RestartCoreForProfileAsync(updated, cancellationToken);
-            StatusMessage = outcome.NotModified
+            var message = outcome.NotModified
                 ? $"✓ {localization["SubscriptionCurrent"]}"
                 : $"✓ {updated.NodeCount} {localization["Nodes"]}";
-            ShowImportOutcomeToast(outcome);
+            ShowImportOutcomeToast(outcome, message);
             return outcome;
-        }, () => outcome);
+        });
     }
 
     public Task CreateBlankProfileAsync(
@@ -359,7 +326,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 cancellationToken);
             await ReloadProfilesAsync(cancellationToken);
             await SelectProfileAsync(Profiles.First(item => item.Id == profile.Id), cancellationToken);
-            StatusMessage = localization["Ready"];
         });
     }
 
@@ -397,7 +363,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 await singBox.StopAsync(cancellationToken);
 
             Settings = updated with { SelectedProfileId = SelectedProfile?.Id };
-            themes.Apply(Settings.Theme);
+            ThemeService.Apply(Settings.Theme);
             localization.Apply(Settings.Language);
             await settingsStore.SaveAsync(Settings, cancellationToken);
 
@@ -415,13 +381,11 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             }
 
             var version = await singBox.InitializeAsync(Settings.SingBoxPath, cancellationToken);
-            CoreVersion = version.Version;
-            CorePlatform = version.Platform;
+            CoreVersion = version;
             if (restart && SelectedProfile is not null)
-                await singBox.StartAsync(profileRepository.GetConfigurationPath(SelectedProfile), cancellationToken);
+                await singBox.StartAsync(paths.GetProfileConfigPath(SelectedProfile), cancellationToken);
 
-            StatusMessage = localization["SettingsSaved"];
-            Toast.Show(StatusMessage, ToastLevel.Success);
+            Toast.Show(localization["SettingsSaved"], ToastLevel.Success);
         });
     }
 
@@ -430,25 +394,18 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         IsBusy = true;
-        NotifyComputedState();
         try
         {
-            var result = await singBox.RunToolAsync(command, cancellationToken);
-            StatusMessage = result.IsSuccess
-                ? $"✓ {localization["ExitSuccess"]}"
-                : string.Format(localization["ExitCode"], result.ExitCode);
-            return result;
+            return await singBox.RunToolAsync(command, cancellationToken);
         }
         catch (Exception exception)
         {
-            StatusMessage = DescribeError(exception);
-            Toast.Show(StatusMessage, ToastLevel.Error);
+            Toast.Show(DescribeError(exception), ToastLevel.Error);
             throw;
         }
         finally
         {
             IsBusy = false;
-            NotifyComputedState();
         }
     }
 
@@ -458,7 +415,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
         }
         Logs.Clear();
-        OnPropertyChanged(nameof(HasLogs));
     }
 
     public void OpenDataDirectory()
@@ -478,16 +434,15 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return RunBusyAsync(async () =>
         {
             await singBox.UninstallCoreServiceAsync(cancellationToken);
-            StatusMessage = localization["TunServiceRemoved"];
-            Toast.Show(StatusMessage, ToastLevel.Success);
+            Toast.Show(localization["TunServiceRemoved"], ToastLevel.Success);
             OnPropertyChanged(nameof(IsTunServiceInstalled));
         });
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         if (disposed)
-            return;
+            return ValueTask.CompletedTask;
         disposed = true;
 
         logFlushTimer.Stop();
@@ -497,15 +452,22 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         singBox.StateChanged -= OnCoreStateChanged;
         localization.LanguageChanged -= OnLanguageChanged;
         initializationGate.Dispose();
-        await Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     partial void OnSelectedProfileChanged(Profile? value)
     {
-        if (!suppressProfileLoad && value is not null && IsInitialized)
+        if (!suppressProfileLoad && value is not null && initialized)
             _ = SelectProfileSafelyAsync(value);
+        OnPropertyChanged(nameof(CanStartCore));
         OnPropertyChanged(nameof(CanDeleteProfile));
-        NotifyComputedState();
+        OnPropertyChanged(nameof(CanRefreshSubscription));
+        OnPropertyChanged(nameof(ActiveNodeDisplay));
+    }
+
+    partial void OnSettingsChanged(AppSettings value)
+    {
+        OnPropertyChanged(nameof(TunDisplay));
     }
 
     partial void OnConfigurationTextChanged(string value)
@@ -538,16 +500,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanRefreshSubscription));
     }
 
-    partial void OnUploadBytesPerSecondChanged(long value)
-    {
-        OnPropertyChanged(nameof(UploadRate));
-    }
-
-    partial void OnDownloadBytesPerSecondChanged(long value)
-    {
-        OnPropertyChanged(nameof(DownloadRate));
-    }
-
     private async Task SaveAndValidateSelectedAsync(CancellationToken cancellationToken)
     {
         var profile = SelectedProfile
@@ -560,12 +512,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             throw new InvalidDataException(validation.CombinedOutput);
 
         await profileRepository.WriteConfigurationAsync(profile, formatted, cancellationToken);
-        var updated = profile with
-        {
-            LastValidationMessage = validation.CombinedOutput,
-            UpdatedAt = DateTimeOffset.UtcNow,
-        };
-        await profileRepository.UpdateAsync(updated, cancellationToken);
+        await profileRepository.UpdateAsync(profile, cancellationToken);
         SetConfigurationText(formatted, false);
         configurationDrafts.MarkSaved(profile.Id);
     }
@@ -576,7 +523,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         Profiles.Clear();
         foreach (var profile in profiles)
             Profiles.Add(profile);
-        OnPropertyChanged(nameof(ActiveNodeCount));
     }
 
     private async Task ClearProfileSelectionAsync(CancellationToken cancellationToken)
@@ -587,7 +533,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         Settings = Settings with { SelectedProfileId = null };
         if (clearPersistedSelection)
             await settingsStore.SaveAsync(Settings, cancellationToken);
-        NotifyComputedState();
     }
 
     private async Task SelectProfileSafelyAsync(Profile profile)
@@ -598,8 +543,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = DescribeError(exception);
-            Toast.Show(StatusMessage, ToastLevel.Error);
+            Toast.Show(DescribeError(exception), ToastLevel.Error);
         }
     }
 
@@ -653,13 +597,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return normalized;
     }
 
-    private Task RunBusyAsync(Func<Task> operation)
+    private async Task RunBusyAsync(Func<Task> operation)
     {
-        return RunBusyWithResultAsync<object?>(async () =>
+        await RunBusyWithResultAsync(async () =>
         {
             await operation();
-            return null;
-        }, static () => null);
+            return true;
+        });
     }
 
     private async Task RestartCoreForProfileAsync(
@@ -668,30 +612,26 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         StopTrafficMonitor();
         await singBox.RestartAsync(
-            profileRepository.GetConfigurationPath(profile),
+            paths.GetProfileConfigPath(profile),
             cancellationToken);
         StartTrafficMonitor();
     }
 
-    private async Task<T?> RunBusyWithResultAsync<T>(Func<Task<T>> operation, Func<T?> fallback)
+    private async Task<T?> RunBusyWithResultAsync<T>(Func<Task<T>> operation)
     {
         IsBusy = true;
-        StatusMessage = localization["Working"];
-        NotifyComputedState();
         try
         {
             return await operation();
         }
         catch (Exception exception)
         {
-            StatusMessage = DescribeError(exception);
-            Toast.Show(StatusMessage, ToastLevel.Error);
-            return fallback();
+            Toast.Show(DescribeError(exception), ToastLevel.Error);
+            return default;
         }
         finally
         {
             IsBusy = false;
-            NotifyComputedState();
         }
     }
 
@@ -706,10 +646,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         {
             CoreState = eventArgs.Current;
             if (!string.IsNullOrWhiteSpace(eventArgs.Error))
-            {
-                StatusMessage = DescribeError(eventArgs.Error);
-                Toast.Show(StatusMessage, ToastLevel.Error);
-            }
+                Toast.Show(DescribeError(eventArgs.Error), ToastLevel.Error);
             if (eventArgs.Current is CoreState.Stopped or CoreState.Faulted)
                 StopTrafficMonitor();
         });
@@ -728,8 +665,6 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         var removeCount = Logs.Count - maximum;
         while (removeCount-- > 0)
             Logs.RemoveAt(0);
-        if (drained > 0)
-            OnPropertyChanged(nameof(HasLogs));
     }
 
     private void StartTrafficMonitor()
@@ -747,8 +682,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                     using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
                     var progress = new Progress<TrafficSnapshot>(snapshot => Dispatcher.UIThread.Post(() =>
                     {
-                        UploadBytesPerSecond = snapshot.UploadBytesPerSecond;
-                        DownloadBytesPerSecond = snapshot.DownloadBytesPerSecond;
+                        uploadBytesPerSecond = snapshot.UploadBytesPerSecond;
+                        downloadBytesPerSecond = snapshot.DownloadBytesPerSecond;
+                        OnPropertyChanged(nameof(UploadRate));
+                        OnPropertyChanged(nameof(DownloadRate));
                     }));
                     await client.StreamTrafficAsync(progress, cancellationToken);
                 }
@@ -769,26 +706,13 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         trafficCancellation?.Cancel();
         trafficCancellation?.Dispose();
         trafficCancellation = null;
-        UploadBytesPerSecond = 0;
-        DownloadBytesPerSecond = 0;
+        uploadBytesPerSecond = 0;
+        downloadBytesPerSecond = 0;
+        OnPropertyChanged(nameof(UploadRate));
+        OnPropertyChanged(nameof(DownloadRate));
     }
 
-    private void NotifyComputedState()
-    {
-        OnPropertyChanged(nameof(CanStartCore));
-        OnPropertyChanged(nameof(CanStopCore));
-        OnPropertyChanged(nameof(CanModifyProfiles));
-        OnPropertyChanged(nameof(CanDeleteProfile));
-        OnPropertyChanged(nameof(CanRefreshSubscription));
-        OnPropertyChanged(nameof(IsCoreRunning));
-        OnPropertyChanged(nameof(ActiveNodeCount));
-        OnPropertyChanged(nameof(ActiveNodeDisplay));
-        OnPropertyChanged(nameof(CoreStateDisplay));
-        OnPropertyChanged(nameof(TunDisplay));
-        OnPropertyChanged(nameof(IsTunServiceInstalled));
-    }
-
-    private void ShowImportOutcomeToast(ProfileImportOutcome outcome)
+    private void ShowImportOutcomeToast(ProfileImportOutcome outcome, string successMessage)
     {
         if (outcome.Warnings.Count > 0)
         {
@@ -797,12 +721,14 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
-        Toast.Show(StatusMessage, ToastLevel.Success);
+        Toast.Show(successMessage, ToastLevel.Success);
     }
 
     private void OnLanguageChanged()
     {
-        NotifyComputedState();
+        OnPropertyChanged(nameof(ActiveNodeDisplay));
+        OnPropertyChanged(nameof(CoreStateDisplay));
+        OnPropertyChanged(nameof(TunDisplay));
     }
 
     private string DescribeError(Exception exception)

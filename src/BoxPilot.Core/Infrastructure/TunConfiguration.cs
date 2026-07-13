@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace BoxPilot.Core.Infrastructure;
 
-public static class TunConfiguration
+internal static class TunConfiguration
 {
     public static async Task<bool> ContainsTunInboundAsync(
         string configurationPath,

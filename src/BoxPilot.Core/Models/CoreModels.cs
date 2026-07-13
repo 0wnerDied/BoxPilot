@@ -80,14 +80,7 @@ public sealed record CommandResult(
     public string CombinedOutput => AnsiTextParser.Parse(CombinedTerminalOutput).Text.Trim();
 }
 
-public sealed record CoreVersionInfo(
-    string Version,
-    string Platform,
-    IReadOnlyList<string> Tags,
-    string RawOutput);
-
 public sealed record CoreStateChangedEventArgs(
-    CoreState Previous,
     CoreState Current,
     int? ProcessId,
     string? Error);

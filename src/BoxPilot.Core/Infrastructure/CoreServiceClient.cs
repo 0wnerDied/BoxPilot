@@ -43,7 +43,6 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
     private string? connectedApplicationFingerprint;
     private string? connectedCoreFingerprint;
     private long nextRequestId;
-    private CoreState remoteState = CoreState.Stopped;
     private bool disposed;
     private bool expectedDisconnect;
 
@@ -53,7 +52,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
 
     public event Action<string>? Disconnected;
 
-    public bool IsConnected => connection is not null;
+    private bool IsConnected => connection is not null;
 
     public async Task StartAsync(
         string executablePath,
@@ -100,7 +99,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
         disposed = true;
 
         // Closing the authenticated lease makes the service stop TUN even if IPC is unresponsive.
-        lifetime.Cancel();
+        await lifetime.CancelAsync().ConfigureAwait(false);
         var activeConnection = Interlocked.Exchange(ref connection, null);
         if (activeConnection is not null)
             await activeConnection.DisposeAsync().ConfigureAwait(false);
@@ -135,8 +134,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
             var requestId = Interlocked.Increment(ref nextRequestId);
             var completion = new TaskCompletionSource<CoreServiceMessage>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!pending.TryAdd(requestId, completion))
-                throw new InvalidOperationException("The core service request identifier collided.");
+            pending[requestId] = completion;
 
             try
             {
@@ -368,7 +366,6 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
         connection = stream;
         connectedApplicationFingerprint = ready.ApplicationFingerprint;
         connectedCoreFingerprint = ready.CoreFingerprint;
-        remoteState = ready.State;
         readerTask = ReadLoopAsync(stream, lifetime.Token);
     }
 
@@ -390,10 +387,7 @@ internal sealed class CoreServiceClient(AppPaths paths) : ICoreServiceClient
                             completion.TrySetResult(message);
                         break;
                     case "state":
-                        var previous = remoteState;
-                        remoteState = message.State;
                         StateChanged?.Invoke(new CoreStateChangedEventArgs(
-                            previous,
                             message.State,
                             message.ProcessId,
                             message.Error));

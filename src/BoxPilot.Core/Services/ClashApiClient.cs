@@ -11,6 +11,8 @@ public sealed class ClashApiClient : IDisposable
 {
     private readonly HttpClient httpClient;
     private readonly bool ownsClient;
+    private readonly Uri baseAddress;
+    private readonly string secret;
 
     public ClashApiClient(int port, string secret, HttpClient? httpClient = null)
     {
@@ -22,21 +24,8 @@ public sealed class ClashApiClient : IDisposable
             Timeout = TimeSpan.FromSeconds(10),
         };
         ownsClient = httpClient is null;
-        BaseAddress = new Uri($"http://127.0.0.1:{port}/");
-        Secret = secret ?? string.Empty;
-    }
-
-    public Uri BaseAddress { get; }
-
-    public string Secret { get; }
-
-    public async Task<string> GetVersionAsync(CancellationToken cancellationToken = default)
-    {
-        using var request = CreateRequest(HttpMethod.Get, "version");
-        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        var json = await ReadObjectAsync(response.Content, cancellationToken).ConfigureAwait(false);
-        return json?["version"]?.ToString() ?? "unknown";
+        baseAddress = new Uri($"http://127.0.0.1:{port}/");
+        this.secret = secret ?? string.Empty;
     }
 
     public async Task<IReadOnlyList<ProxyChoice>> GetProxyChoicesAsync(
@@ -59,7 +48,6 @@ public sealed class ClashApiClient : IDisposable
                 var type = value["type"]?.ToString() ?? string.Empty;
                 return new ProxyChoice(
                     pair.Key,
-                    type,
                     string.Equals(type, "Selector", StringComparison.OrdinalIgnoreCase),
                     value["now"]?.ToString() ?? string.Empty,
                     value["all"]!.AsArray()
@@ -121,10 +109,10 @@ public sealed class ClashApiClient : IDisposable
         ArgumentNullException.ThrowIfNull(progress);
 
         using var socket = new ClientWebSocket();
-        if (!string.IsNullOrWhiteSpace(Secret))
-            socket.Options.SetRequestHeader("Authorization", $"Bearer {Secret}");
+        if (!string.IsNullOrWhiteSpace(secret))
+            socket.Options.SetRequestHeader("Authorization", $"Bearer {secret}");
 
-        var builder = new UriBuilder(BaseAddress)
+        var builder = new UriBuilder(baseAddress)
         {
             Scheme = "ws",
             Path = "traffic",
@@ -147,7 +135,8 @@ public sealed class ClashApiClient : IDisposable
             while (!received.EndOfMessage);
 
             message.Position = 0;
-            var json = JsonNode.Parse(message) as JsonObject;
+            var json = await JsonNode.ParseAsync(message, cancellationToken: cancellationToken)
+                .ConfigureAwait(false) as JsonObject;
             if (json is null)
                 continue;
             progress.Report(new TrafficSnapshot(
@@ -164,9 +153,9 @@ public sealed class ClashApiClient : IDisposable
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
-        var request = new HttpRequestMessage(method, new Uri(BaseAddress, path));
-        if (!string.IsNullOrWhiteSpace(Secret))
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Secret);
+        var request = new HttpRequestMessage(method, new Uri(baseAddress, path));
+        if (!string.IsNullOrWhiteSpace(secret))
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secret);
         return request;
     }
 

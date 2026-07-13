@@ -2,7 +2,7 @@ using BoxPilot.Core.Models;
 
 namespace BoxPilot.Core.Infrastructure;
 
-public static class CoreLogClassifier
+internal static class CoreLogClassifier
 {
     public static CoreLogLevel Detect(CoreLogStream stream, string message)
     {

@@ -11,7 +11,7 @@ public sealed class SubscriptionClientTests
     public async Task FetchIgnoresLegacyCharsetAndDecodesUtf8()
     {
         const string payload = "{\"remarks\":\"中文节点 🚀\"}";
-        using var httpClient = new HttpClient(new StaticResponseHandler(() =>
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
         {
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -33,7 +33,7 @@ public sealed class SubscriptionClientTests
     [Fact]
     public async Task FetchRejectsInvalidUtf8()
     {
-        using var httpClient = new HttpClient(new StaticResponseHandler(() =>
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new ByteArrayContent([0x7b, 0xff, 0x7d]),
@@ -42,16 +42,5 @@ public sealed class SubscriptionClientTests
 
         await Assert.ThrowsAsync<DecoderFallbackException>(
             () => client.FetchAsync(new Uri("https://example.test/sub"), "BoxPilot tests"));
-    }
-
-    private sealed class StaticResponseHandler(Func<HttpResponseMessage> responseFactory)
-        : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(responseFactory());
-        }
     }
 }

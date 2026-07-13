@@ -2,7 +2,7 @@ using System.Text;
 
 namespace BoxPilot.Core.Infrastructure;
 
-public static class CommandLineTokenizer
+internal static class CommandLineTokenizer
 {
     public static IReadOnlyList<string> Split(string commandLine)
     {

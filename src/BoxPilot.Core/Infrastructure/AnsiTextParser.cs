@@ -20,7 +20,7 @@ public static class AnsiTextParser
         var text = new StringBuilder(value.Length);
         text.Append(value, 0, firstControl);
         var spans = new List<AnsiTextSpan>();
-        var style = AnsiTextStyle.Default;
+        var style = default(AnsiTextStyle);
         var styleStart = text.Length;
         var index = firstControl;
         while (index < value.Length)
@@ -138,7 +138,7 @@ public static class AnsiTextParser
         var count = ParseParameters(value, parameters);
         if (count == 0)
         {
-            style = AnsiTextStyle.Default;
+            style = default;
             return;
         }
 
@@ -148,7 +148,7 @@ public static class AnsiTextParser
             switch (code)
             {
                 case 0:
-                    style = AnsiTextStyle.Default;
+                    style = default;
                     break;
                 case 1:
                     style = style with { Bold = true };
@@ -339,7 +339,7 @@ public static class AnsiTextParser
         int start,
         int end)
     {
-        if (end > start && style != AnsiTextStyle.Default)
+        if (end > start && style != default)
             spans.Add(new AnsiTextSpan(start, end - start, style));
     }
 }

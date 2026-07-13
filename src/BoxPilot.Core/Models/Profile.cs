@@ -32,25 +32,15 @@ public sealed record Profile
 
     public DateTimeOffset? LastModified { get; init; }
 
-    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     [JsonIgnore]
     public DateTimeOffset UpdatedAtLocal => UpdatedAt.ToLocalTime();
 
-    public DateTimeOffset? LastSubscriptionUpdate { get; init; }
-
-    public int UpdateIntervalHours { get; init; } = 24;
-
     public int NodeCount { get; init; }
-
-    public string? LastValidationMessage { get; init; }
 }
 
 internal sealed record ProfileIndex
 {
-    public int SchemaVersion { get; init; } = 1;
-
     public List<Profile> Profiles { get; init; } = [];
 }

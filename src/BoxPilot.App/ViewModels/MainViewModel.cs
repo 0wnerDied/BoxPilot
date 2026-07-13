@@ -7,76 +7,71 @@ namespace BoxPilot.App.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private readonly DashboardViewModel dashboard;
+    private readonly ProfilesViewModel profiles;
+    private readonly ConfigurationViewModel configuration;
+    private readonly LogsViewModel logs;
+    private readonly ToolsViewModel tools;
+    private readonly SettingsViewModel settings;
+    private string currentPageKey = "dashboard";
+
     public MainViewModel(AppSessionViewModel session, LocalizationService localization)
     {
         Session = session;
 
-        Dashboard = new DashboardViewModel(session, localization);
-        Profiles = new ProfilesViewModel(session);
-        Configuration = new ConfigurationViewModel(session);
-        Logs = new LogsViewModel(session);
-        Tools = new ToolsViewModel(session, localization);
-        Settings = new SettingsViewModel(session, localization);
-        CurrentPage = Dashboard;
+        dashboard = new DashboardViewModel(session, localization);
+        profiles = new ProfilesViewModel(session);
+        configuration = new ConfigurationViewModel(session);
+        logs = new LogsViewModel(session);
+        tools = new ToolsViewModel(session, localization);
+        settings = new SettingsViewModel(session, localization);
+        CurrentPage = dashboard;
         localization.LanguageChanged += OnLanguageChanged;
         session.PropertyChanged += OnSessionPropertyChanged;
     }
 
     public AppSessionViewModel Session { get; }
 
-    public DashboardViewModel Dashboard { get; }
-
-    public ProfilesViewModel Profiles { get; }
-
-    public ConfigurationViewModel Configuration { get; }
-
-    public LogsViewModel Logs { get; }
-
-    public ToolsViewModel Tools { get; }
-
-    public SettingsViewModel Settings { get; }
-
     [ObservableProperty]
     public partial ViewModelBase CurrentPage { get; private set; }
 
-    [ObservableProperty]
-    public partial string CurrentPageKey { get; private set; } = "dashboard";
+    public bool IsDashboardSelected => currentPageKey == "dashboard";
 
-    public bool IsDashboardSelected => CurrentPageKey == "dashboard";
+    public bool IsProfilesSelected => currentPageKey == "profiles";
 
-    public bool IsProfilesSelected => CurrentPageKey == "profiles";
+    public bool IsConfigurationSelected => currentPageKey == "configuration";
 
-    public bool IsConfigurationSelected => CurrentPageKey == "configuration";
+    public bool IsLogsSelected => currentPageKey == "logs";
 
-    public bool IsLogsSelected => CurrentPageKey == "logs";
+    public bool IsToolsSelected => currentPageKey == "tools";
 
-    public bool IsToolsSelected => CurrentPageKey == "tools";
-
-    public bool IsSettingsSelected => CurrentPageKey == "settings";
+    public bool IsSettingsSelected => currentPageKey == "settings";
 
     [RelayCommand]
     private void Navigate(string? page)
     {
-        CurrentPageKey = page?.ToLowerInvariant() ?? "dashboard";
-        CurrentPage = CurrentPageKey switch
+        (string Key, ViewModelBase Page) destination = page?.ToLowerInvariant() switch
         {
-            "profiles" => Profiles,
-            "configuration" => Configuration,
-            "logs" => Logs,
-            "tools" => Tools,
-            "settings" => Settings,
-            _ => Dashboard,
+            "profiles" => ("profiles", profiles),
+            "configuration" => ("configuration", configuration),
+            "logs" => ("logs", logs),
+            "tools" => ("tools", tools),
+            "settings" => ("settings", settings),
+            _ => ("dashboard", dashboard),
         };
+        currentPageKey = destination.Key;
+        CurrentPage = destination.Page;
+        NotifyNavigationState();
 
-        if (CurrentPage == Settings)
-            Settings.Refresh();
-        if (CurrentPage == Dashboard && Session.IsCoreRunning)
-            _ = Dashboard.RefreshProxiesAsync();
+        if (CurrentPage == settings)
+            settings.Refresh();
+        if (CurrentPage == dashboard && Session.IsCoreRunning)
+            _ = dashboard.RefreshProxiesAsync();
     }
 
     private void OnLanguageChanged()
     {
-        Settings.NotifyLanguageChanged();
+        settings.NotifyLanguageChanged();
     }
 
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
@@ -85,12 +80,12 @@ public partial class MainViewModel : ViewModelBase
             return;
 
         if (Session.IsCoreRunning)
-            _ = Dashboard.RefreshProxiesAsync();
+            _ = dashboard.RefreshProxiesAsync();
         else
-            Dashboard.ClearProxies();
+            dashboard.ClearProxies();
     }
 
-    partial void OnCurrentPageKeyChanged(string value)
+    private void NotifyNavigationState()
     {
         OnPropertyChanged(nameof(IsDashboardSelected));
         OnPropertyChanged(nameof(IsProfilesSelected));

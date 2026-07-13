@@ -85,7 +85,7 @@ public static class CoreServiceInstaller
             .ConfigureAwait(false);
     }
 
-    public static bool IsInstalled(AppPaths paths)
+    internal static bool IsInstalled(AppPaths paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
         var layout = CoreServiceLayout.Create(paths, CoreServiceIdentity.Create(paths));
@@ -640,8 +640,8 @@ public static class CoreServiceInstaller
         if (!process.Start())
             throw new InvalidOperationException($"Could not start {executable}.");
 
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(InstallerCommandTimeout);
         try

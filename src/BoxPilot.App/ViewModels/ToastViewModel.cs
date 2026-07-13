@@ -16,6 +16,7 @@ public enum ToastLevel
 public sealed partial class ToastItemViewModel : ViewModelBase
 {
     private readonly Action<ToastItemViewModel> dismiss;
+    private readonly ToastLevel level;
 
     public ToastItemViewModel(
         string message,
@@ -23,17 +24,15 @@ public sealed partial class ToastItemViewModel : ViewModelBase
         Action<ToastItemViewModel> dismiss)
     {
         Message = message;
-        Level = level;
+        this.level = level;
         this.dismiss = dismiss;
     }
 
     public string Message { get; }
 
-    public ToastLevel Level { get; }
+    public bool IsSuccess => level == ToastLevel.Success;
 
-    public bool IsSuccess => Level == ToastLevel.Success;
-
-    public bool IsError => Level == ToastLevel.Error;
+    public bool IsError => level == ToastLevel.Error;
 
     [ObservableProperty]
     public partial bool IsDismissing { get; set; }

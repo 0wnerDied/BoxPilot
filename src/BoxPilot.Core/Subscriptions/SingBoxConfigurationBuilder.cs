@@ -57,8 +57,20 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
         return configService.ApplyRuntimeOptions(configuration, ToSettings(options));
     }
 
-    public static JsonObject CreateBaseConfiguration(JsonArray outbounds, string finalOutbound)
+    public static JsonObject CreateBaseConfiguration(
+        JsonArray outbounds,
+        string finalOutbound,
+        string? dnsStrategy = "prefer_ipv4")
     {
+        var dns = new JsonObject
+        {
+            ["servers"] = new JsonArray(
+                new JsonObject { ["type"] = "local", ["tag"] = "dns-local" }),
+            ["final"] = "dns-local",
+        };
+        if (dnsStrategy is not null)
+            dns["strategy"] = dnsStrategy;
+
         return new JsonObject
         {
             ["log"] = new JsonObject
@@ -66,13 +78,7 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
                 ["level"] = "info",
                 ["timestamp"] = true,
             },
-            ["dns"] = new JsonObject
-            {
-                ["servers"] = new JsonArray(
-                    new JsonObject { ["type"] = "local", ["tag"] = "dns-local" }),
-                ["final"] = "dns-local",
-                ["strategy"] = "prefer_ipv4",
-            },
+            ["dns"] = dns,
             ["outbounds"] = outbounds,
             ["route"] = new JsonObject
             {
@@ -100,6 +106,12 @@ internal sealed class SingBoxConfigurationBuilder(SingBoxConfigService configSer
     internal sealed class TagAllocator
     {
         private readonly HashSet<string> used = new(StringComparer.Ordinal);
+
+        public TagAllocator(IEnumerable<string>? existing = null)
+        {
+            if (existing is not null)
+                used.UnionWith(existing);
+        }
 
         public string Allocate(string? requested)
         {

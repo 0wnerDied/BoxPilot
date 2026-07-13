@@ -46,7 +46,7 @@ public sealed class ClashApiClientTests
               }
             }
             """;
-        using var httpClient = new HttpClient(new StubHandler(_ =>
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(responseJson, Encoding.UTF8, "application/json"),
@@ -57,9 +57,7 @@ public sealed class ClashApiClientTests
 
         Assert.Equal(["Proxy", "Nested", "Auto"], groups.Select(static group => group.Group));
         Assert.True(groups[0].IsSelectable);
-        Assert.Equal("Selector", groups[0].Type);
         Assert.False(groups[2].IsSelectable);
-        Assert.Equal("URLTest", groups[2].Type);
         var node = groups[0].Options[0];
         Assert.Equal("日本 A01", node.Name);
         Assert.Equal("VLESS", node.Type);
@@ -75,7 +73,7 @@ public sealed class ClashApiClientTests
         Uri? requestUri = null;
         string? requestBody = null;
         string? authorization = null;
-        using var httpClient = new HttpClient(new StubHandler(async request =>
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(async request =>
         {
             requestUri = request.RequestUri;
             requestBody = await request.Content!.ReadAsStringAsync();
@@ -90,27 +88,5 @@ public sealed class ClashApiClientTests
         Assert.Equal("日本 A01", JsonNode.Parse(requestBody!)?["name"]?.ToString());
         Assert.DoesNotContain("\\u", requestBody, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Bearer test-secret", authorization);
-    }
-
-    private sealed class StubHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> handler;
-
-        public StubHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
-            : this(request => Task.FromResult(handler(request)))
-        {
-        }
-
-        public StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
-        {
-            this.handler = handler;
-        }
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            return handler(request);
-        }
     }
 }

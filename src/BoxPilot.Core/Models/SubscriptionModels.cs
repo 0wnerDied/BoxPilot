@@ -10,22 +10,13 @@ public enum SubscriptionFormat
     UriList,
 }
 
-public sealed record SubscriptionQuota(
-    long? UploadBytes,
-    long? DownloadBytes,
-    long? TotalBytes,
-    DateTimeOffset? ExpiresAt);
-
-public sealed record SubscriptionFetchResult(
+internal sealed record SubscriptionFetchResult(
     string Content,
-    string? MediaType,
     string? ETag,
     DateTimeOffset? LastModified,
-    int? SuggestedUpdateHours,
-    SubscriptionQuota? Quota,
     bool NotModified = false);
 
-public sealed record SubscriptionBuildOptions
+internal sealed record SubscriptionBuildOptions
 {
     public int MixedPort { get; init; } = 2080;
 
@@ -38,7 +29,7 @@ public sealed record SubscriptionBuildOptions
     public bool EnableTun { get; init; }
 }
 
-public sealed record SubscriptionImportResult(
+internal sealed record SubscriptionImportResult(
     SubscriptionFormat Format,
     JsonObject Configuration,
     int NodeCount,
@@ -54,7 +45,6 @@ public sealed record ProxyNode(
 
 public sealed record ProxyChoice(
     string Group,
-    string Type,
     bool IsSelectable,
     string Selected,
     IReadOnlyList<ProxyNode> Options);
@@ -64,6 +54,4 @@ public sealed record TrafficSnapshot(long UploadBytesPerSecond, long DownloadByt
 public sealed record ProfileImportOutcome(
     Profile Profile,
     IReadOnlyList<string> Warnings,
-    SubscriptionQuota? Quota,
-    bool NotModified,
-    string ValidationOutput);
+    bool NotModified);

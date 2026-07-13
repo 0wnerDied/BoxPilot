@@ -26,7 +26,7 @@ public sealed class SubscriptionParser
         clashConverter = new ClashConfigConverter(configService);
     }
 
-    public SubscriptionImportResult Parse(string content, SubscriptionBuildOptions options)
+    internal SubscriptionImportResult Parse(string content, SubscriptionBuildOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentNullException.ThrowIfNull(options);

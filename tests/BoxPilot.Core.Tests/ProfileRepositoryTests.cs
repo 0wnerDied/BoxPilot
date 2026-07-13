@@ -7,12 +7,12 @@ namespace BoxPilot.Core.Tests;
 
 public sealed class ProfileRepositoryTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"boxpilot-tests-{Guid.NewGuid():N}");
+    private readonly TemporaryDirectory directory = new();
 
     [Fact]
     public async Task CreateUpdateAndDeleteRoundTripsProfile()
     {
-        var repository = new ProfileRepository(new AppPaths(root));
+        var repository = new ProfileRepository(new AppPaths(directory.Path));
         var profile = await repository.CreateAsync("Test", "{}", ProfileSource.Manual);
 
         Assert.Equal("{}", await repository.ReadConfigurationAsync(profile));
@@ -20,9 +20,9 @@ public sealed class ProfileRepositoryTests : IDisposable
 
         var updated = profile with { Name = "Updated", NodeCount = 3 };
         await repository.UpdateAsync(updated);
-        var loaded = await repository.FindAsync(profile.Id);
-        Assert.Equal("Updated", loaded?.Name);
-        Assert.Equal(3, loaded?.NodeCount);
+        var loaded = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("Updated", loaded.Name);
+        Assert.Equal(3, loaded.NodeCount);
 
         await repository.DeleteAsync(profile.Id);
         Assert.Empty(await repository.GetAllAsync());
@@ -31,7 +31,7 @@ public sealed class ProfileRepositoryTests : IDisposable
     [Fact]
     public async Task ConfigurationRoundTripsUtf8WithoutBom()
     {
-        var paths = new AppPaths(root);
+        var paths = new AppPaths(directory.Path);
         var repository = new ProfileRepository(paths);
         const string configuration = """
             {
@@ -55,7 +55,7 @@ public sealed class ProfileRepositoryTests : IDisposable
     [Fact]
     public async Task ReadConfigurationRejectsInvalidUtf8()
     {
-        var paths = new AppPaths(root);
+        var paths = new AppPaths(directory.Path);
         var repository = new ProfileRepository(paths);
         var profile = await repository.CreateAsync("Test", "{}");
         await File.WriteAllBytesAsync(paths.GetProfileConfigPath(profile), [0x7b, 0xff, 0x7d]);
@@ -67,7 +67,7 @@ public sealed class ProfileRepositoryTests : IDisposable
     [Fact]
     public async Task ConcurrentCreatesPreserveEveryProfile()
     {
-        var repository = new ProfileRepository(new AppPaths(root));
+        var repository = new ProfileRepository(new AppPaths(directory.Path));
 
         await Task.WhenAll(Enumerable.Range(0, 16)
             .Select(index => repository.CreateAsync($"Profile {index}", "{}")));
@@ -80,7 +80,7 @@ public sealed class ProfileRepositoryTests : IDisposable
     [Fact]
     public async Task CanceledReadDoesNotEnterRepositoryGate()
     {
-        var repository = new ProfileRepository(new AppPaths(root));
+        var repository = new ProfileRepository(new AppPaths(directory.Path));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -90,13 +90,11 @@ public sealed class ProfileRepositoryTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(root))
-            Directory.Delete(root, true);
+        directory.Dispose();
     }
 
     private static bool HasUtf8Bom(byte[] bytes)
     {
         return bytes is [0xef, 0xbb, 0xbf, ..];
     }
-
 }

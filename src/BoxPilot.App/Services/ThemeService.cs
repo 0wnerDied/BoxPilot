@@ -3,9 +3,9 @@ using Avalonia.Styling;
 
 namespace BoxPilot.App.Services;
 
-public sealed class ThemeService
+internal static class ThemeService
 {
-    public void Apply(string? theme)
+    public static void Apply(string? theme)
     {
         if (Application.Current is not { } application)
             return;

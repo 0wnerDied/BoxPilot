@@ -5,16 +5,22 @@ using BoxPilot.Core.Services;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class SingBoxConfigServiceTests
+public sealed class SingBoxConfigServiceTests : IAsyncLifetime
 {
-    [Fact]
-    public async Task SerializeAndFormatPreserveUnicodeText()
+    private readonly TemporaryDirectory directory = new();
+    private readonly SingBoxService core;
+    private readonly SingBoxConfigService service;
+
+    public SingBoxConfigServiceTests()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
+        var paths = new AppPaths(directory.Path);
+        core = new SingBoxService(paths);
+        service = new SingBoxConfigService(paths, core);
+    }
+
+    [Fact]
+    public void SerializeAndFormatPreserveUnicodeText()
+    {
         var configuration = new JsonObject
         {
             ["tag"] = "IPv6 日本 A01 移动宽带优化",
@@ -32,13 +38,8 @@ public sealed class SingBoxConfigServiceTests
     }
 
     [Fact]
-    public async Task PrepareManagedSubscriptionDefaultsToAutomaticSelection()
+    public void PrepareManagedSubscriptionDefaultsToAutomaticSelection()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
         var configuration = new JsonObject
         {
             ["outbounds"] = new JsonArray(
@@ -71,13 +72,8 @@ public sealed class SingBoxConfigServiceTests
     }
 
     [Fact]
-    public async Task ApplyRuntimeOptionsRemovesImportedTunWhenDisabled()
+    public void ApplyRuntimeOptionsRemovesImportedTunWhenDisabled()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
         var configuration = new JsonObject
         {
             ["inbounds"] = new JsonArray(
@@ -101,13 +97,8 @@ public sealed class SingBoxConfigServiceTests
     }
 
     [Fact]
-    public async Task ApplyRuntimeOptionsKeepsImportedTunWhenEnabled()
+    public void ApplyRuntimeOptionsKeepsImportedTunWhenEnabled()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
         var importedTun = new JsonObject
         {
             ["type"] = "tun",
@@ -132,13 +123,8 @@ public sealed class SingBoxConfigServiceTests
     }
 
     [Fact]
-    public async Task ApplyRuntimeOptionsBootstrapsRemoteRulesThroughDirectOutbound()
+    public void ApplyRuntimeOptionsBootstrapsRemoteRulesThroughDirectOutbound()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
         var configuration = new JsonObject
         {
             ["outbounds"] = new JsonArray(
@@ -179,13 +165,8 @@ public sealed class SingBoxConfigServiceTests
     }
 
     [Fact]
-    public async Task PrepareManagedSubscriptionCanPreserveSourcePolicyGroups()
+    public void PrepareManagedSubscriptionCanPreserveSourcePolicyGroups()
     {
-        var paths = new AppPaths(Path.Combine(
-            Path.GetTempPath(),
-            $"boxpilot-tests-{Guid.NewGuid():N}"));
-        await using var core = new SingBoxService(paths);
-        var service = new SingBoxConfigService(paths, core);
         var configuration = new JsonObject
         {
             ["outbounds"] = new JsonArray(
@@ -209,5 +190,13 @@ public sealed class SingBoxConfigServiceTests
             outbound => outbound["type"]?.ToString() == "urltest");
         Assert.Equal("Edge", prepared["outbounds"]?[1]?["default"]?.ToString());
         Assert.Equal("subscription-test", prepared["experimental"]?["cache_file"]?["cache_id"]?.ToString());
+    }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        await core.DisposeAsync();
+        directory.Dispose();
     }
 }

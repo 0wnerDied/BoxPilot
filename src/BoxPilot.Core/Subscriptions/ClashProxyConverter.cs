@@ -69,27 +69,23 @@ internal static class ClashProxyConverter
                 break;
             case "ss":
             case "shadowsocks":
-                outbound["type"] = "shadowsocks";
                 AddRequired(outbound, "method", JsonValueReader.String(source, "cipher", "method"), name, warnings);
                 AddRequired(outbound, "password", JsonValueReader.String(source, "password"), name, warnings);
                 AddShadowsocksPlugin(source, outbound);
                 break;
             case "socks":
             case "socks5":
-                outbound["type"] = "socks";
                 outbound["version"] = "5";
                 JsonValueReader.AddIfNotEmpty(outbound, "username", JsonValueReader.String(source, "username"));
                 JsonValueReader.AddIfNotEmpty(outbound, "password", JsonValueReader.String(source, "password"));
                 break;
             case "http":
             case "https":
-                outbound["type"] = "http";
                 JsonValueReader.AddIfNotEmpty(outbound, "username", JsonValueReader.String(source, "username"));
                 JsonValueReader.AddIfNotEmpty(outbound, "password", JsonValueReader.String(source, "password"));
                 break;
             case "hysteria2":
             case "hy2":
-                outbound["type"] = "hysteria2";
                 AddRequired(
                     outbound,
                     "password",

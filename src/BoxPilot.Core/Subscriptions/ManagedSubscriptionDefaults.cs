@@ -50,7 +50,11 @@ internal static class ManagedSubscriptionDefaults
             .FirstOrDefault(outbound => IsUsableUrlTest(outbound, proxyTags));
         if (automatic is null)
         {
-            var tag = AllocateTag(outbounds, AutomaticTag);
+            var allocator = new SingBoxConfigurationBuilder.TagAllocator(outbounds
+                .OfType<JsonObject>()
+                .Select(static outbound => JsonValueReader.String(outbound, "tag"))
+                .OfType<string>());
+            var tag = allocator.Allocate(AutomaticTag);
             automatic = new JsonObject
             {
                 ["type"] = "urltest",
@@ -66,9 +70,7 @@ internal static class ManagedSubscriptionDefaults
             outbounds.Insert(insertionIndex, automatic);
         }
 
-        var automaticTag = JsonValueReader.String(automatic, "tag");
-        if (string.IsNullOrWhiteSpace(automaticTag))
-            return;
+        var automaticTag = JsonValueReader.String(automatic, "tag")!;
 
         var primary = selectors[0].Outbound;
         var members = JsonValueReader.Array(primary, "outbounds") ?? [];
@@ -105,20 +107,5 @@ internal static class ManagedSubscriptionDefaults
                    StringComparison.OrdinalIgnoreCase)
                && CountProxyMembers(outbound, proxyTags) > 0
                && !string.IsNullOrWhiteSpace(JsonValueReader.String(outbound, "tag"));
-    }
-
-    private static string AllocateTag(JsonArray outbounds, string requested)
-    {
-        var used = outbounds
-            .OfType<JsonObject>()
-            .Select(static outbound => JsonValueReader.String(outbound, "tag"))
-            .Where(static tag => !string.IsNullOrWhiteSpace(tag))
-            .Cast<string>()
-            .ToHashSet(StringComparer.Ordinal);
-        var candidate = requested;
-        var suffix = 2;
-        while (!used.Add(candidate))
-            candidate = $"{requested} ({suffix++})";
-        return candidate;
     }
 }

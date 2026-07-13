@@ -1,3 +1,4 @@
+using System.Globalization;
 using BoxPilot.Core.Infrastructure;
 using BoxPilot.Core.Models;
 
@@ -35,7 +36,7 @@ public sealed class CoreLogClassifierTests
                                + "[\u001B[38;5;96m456430416\u001B[0m 1ms] connected";
 
         var entry = CoreLogParser.Parse(
-            DateTimeOffset.Parse("2026-07-12T20:14:22+08:00"),
+            DateTimeOffset.Parse("2026-07-12T20:14:22+08:00", CultureInfo.InvariantCulture),
             CoreLogStream.StandardError,
             message);
 

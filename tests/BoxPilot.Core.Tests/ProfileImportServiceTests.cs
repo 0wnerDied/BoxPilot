@@ -7,7 +7,7 @@ using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class ProfileImportServiceTests : IDisposable
+public sealed class ProfileImportServiceTests : IAsyncLifetime
 {
     private const string ClashSubscription = """
         proxies:
@@ -31,12 +31,23 @@ public sealed class ProfileImportServiceTests : IDisposable
         }
         """;
 
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"boxpilot-tests-{Guid.NewGuid():N}");
+    private readonly TemporaryDirectory directory = new();
+    private readonly SingBoxService core;
+    private readonly SingBoxConfigService config;
+    private readonly ProfileRepository repository;
+
+    public ProfileImportServiceTests()
+    {
+        var paths = new AppPaths(directory.Path);
+        core = new SingBoxService(paths);
+        config = new SingBoxConfigService(paths, core);
+        repository = new ProfileRepository(paths);
+    }
 
     [Fact]
     public async Task FetchSubscriptionPrefersClashRepresentationWithSourceGroups()
     {
-        var handler = new RequestHandler(request =>
+        var handler = new StubHttpMessageHandler(request =>
         {
             Assert.EndsWith("/sub/clash", request.RequestUri?.AbsolutePath);
             Assert.Equal("?token=opaque", request.RequestUri?.Query);
@@ -46,8 +57,7 @@ public sealed class ProfileImportServiceTests : IDisposable
         });
         using var httpClient = new HttpClient(handler);
         using var subscriptionClient = new SubscriptionClient(httpClient);
-        await using var core = new SingBoxService(new AppPaths(root));
-        var service = CreateService(subscriptionClient, core);
+        var service = CreateService(subscriptionClient);
 
         var download = await service.FetchSubscriptionAsync(
             new Uri("https://example.test/sub?token=opaque"),
@@ -64,15 +74,14 @@ public sealed class ProfileImportServiceTests : IDisposable
     [Fact]
     public async Task FetchSubscriptionIgnoresNativeJsonFromClashCandidate()
     {
-        var handler = new RequestHandler(request => request.RequestUri?.AbsolutePath.EndsWith(
+        var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsolutePath.EndsWith(
             "/clash",
             StringComparison.Ordinal) == true
             ? TextResponse(SingBoxSubscription, "application/json")
             : TextResponse(ClashSubscription, "application/yaml"));
         using var httpClient = new HttpClient(handler);
         using var subscriptionClient = new SubscriptionClient(httpClient);
-        await using var core = new SingBoxService(new AppPaths(root));
-        var service = CreateService(subscriptionClient, core);
+        var service = CreateService(subscriptionClient);
 
         var download = await service.FetchSubscriptionAsync(
             new Uri("https://example.test/sub"),
@@ -86,7 +95,7 @@ public sealed class ProfileImportServiceTests : IDisposable
     [Fact]
     public async Task FetchSubscriptionFallsBackWhenProviderRejectsClashRepresentations()
     {
-        var handler = new RequestHandler(request =>
+        var handler = new StubHttpMessageHandler(request =>
         {
             var requestUri = request.RequestUri!;
             var requestsClash = requestUri.AbsolutePath.EndsWith(
@@ -101,8 +110,7 @@ public sealed class ProfileImportServiceTests : IDisposable
         });
         using var httpClient = new HttpClient(handler);
         using var subscriptionClient = new SubscriptionClient(httpClient);
-        await using var core = new SingBoxService(new AppPaths(root));
-        var service = CreateService(subscriptionClient, core);
+        var service = CreateService(subscriptionClient);
 
         var download = await service.FetchSubscriptionAsync(
             new Uri("https://example.test/sub"),
@@ -118,7 +126,7 @@ public sealed class ProfileImportServiceTests : IDisposable
     {
         const string subscription =
             "vless://11111111-1111-1111-1111-111111111111@example.test:443#Edge";
-        var handler = new RequestHandler(request =>
+        var handler = new StubHttpMessageHandler(request =>
         {
             Assert.Equal("/sub/v2ray", request.RequestUri?.AbsolutePath);
             Assert.Empty(request.RequestUri!.Query);
@@ -126,8 +134,7 @@ public sealed class ProfileImportServiceTests : IDisposable
         });
         using var httpClient = new HttpClient(handler);
         using var subscriptionClient = new SubscriptionClient(httpClient);
-        await using var core = new SingBoxService(new AppPaths(root));
-        var service = CreateService(subscriptionClient, core);
+        var service = CreateService(subscriptionClient);
 
         var download = await service.FetchSubscriptionAsync(
             new Uri("https://example.test/sub/v2ray"),
@@ -137,23 +144,21 @@ public sealed class ProfileImportServiceTests : IDisposable
         Assert.Single(handler.Requests);
     }
 
-    public void Dispose()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
-        if (Directory.Exists(root))
-            Directory.Delete(root, true);
+        await core.DisposeAsync();
+        directory.Dispose();
     }
 
-    private ProfileImportService CreateService(
-        SubscriptionClient subscriptionClient,
-        SingBoxService core)
+    private ProfileImportService CreateService(SubscriptionClient subscriptionClient)
     {
-        var paths = new AppPaths(root);
-        var config = new SingBoxConfigService(paths, core);
         return new ProfileImportService(
             subscriptionClient,
             new SubscriptionParser(config),
             config,
-            new ProfileRepository(paths));
+            repository);
     }
 
     private static HttpResponseMessage TextResponse(string content, string mediaType)
@@ -162,19 +167,5 @@ public sealed class ProfileImportServiceTests : IDisposable
         {
             Content = new StringContent(content, Encoding.UTF8, mediaType),
         };
-    }
-
-    private sealed class RequestHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
-        : HttpMessageHandler
-    {
-        public List<Uri> Requests { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request.RequestUri!);
-            return Task.FromResult(responseFactory(request));
-        }
     }
 }

@@ -12,8 +12,6 @@ public sealed record AppSettings
 
     public bool StartCoreOnLaunch { get; init; }
 
-    public bool StartMinimized { get; init; }
-
     public bool CloseToTray { get; init; } = true;
 
     public bool EnableSystemProxy { get; init; } = true;
@@ -29,6 +27,4 @@ public sealed record AppSettings
     public int MaximumLogEntries { get; init; } = 2_000;
 
     public string SubscriptionUserAgent { get; init; } = "BoxPilot/0.1 sing-box";
-
-    public int DefaultSubscriptionUpdateHours { get; init; } = 24;
 }

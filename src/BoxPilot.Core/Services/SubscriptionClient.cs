@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using BoxPilot.Core.Infrastructure;
@@ -35,7 +34,7 @@ public sealed class SubscriptionClient : IDisposable
         ownsClient = true;
     }
 
-    public async Task<SubscriptionFetchResult> FetchAsync(
+    internal async Task<SubscriptionFetchResult> FetchAsync(
         Uri url,
         string userAgent,
         string? etag = null,
@@ -69,11 +68,8 @@ public sealed class SubscriptionClient : IDisposable
         {
             return new SubscriptionFetchResult(
                 string.Empty,
-                response.Content.Headers.ContentType?.MediaType,
                 response.Headers.ETag?.ToString() ?? etag,
                 response.Content.Headers.LastModified ?? lastModified,
-                ParsePositiveIntegerHeader(response, "profile-update-interval"),
-                ParseQuota(response),
                 true);
         }
 
@@ -85,11 +81,8 @@ public sealed class SubscriptionClient : IDisposable
             .ConfigureAwait(false);
         return new SubscriptionFetchResult(
             content,
-            response.Content.Headers.ContentType?.MediaType,
             response.Headers.ETag?.ToString(),
-            response.Content.Headers.LastModified,
-            ParsePositiveIntegerHeader(response, "profile-update-interval"),
-            ParseQuota(response));
+            response.Content.Headers.LastModified);
     }
 
     public void Dispose()
@@ -119,71 +112,5 @@ public sealed class SubscriptionClient : IDisposable
 
         buffer.Position = 0;
         return await Utf8Text.ReadToEndAsync(buffer, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static int? ParsePositiveIntegerHeader(HttpResponseMessage response, string name)
-    {
-        if (!TryGetHeader(response, name, out var raw)
-            || !int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            || value <= 0)
-        {
-            return null;
-        }
-
-        return value;
-    }
-
-    private static SubscriptionQuota? ParseQuota(HttpResponseMessage response)
-    {
-        if (!TryGetHeader(response, "subscription-userinfo", out var value))
-            return null;
-
-        var fields = value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(static part => part.Split('=', 2, StringSplitOptions.TrimEntries))
-            .Where(static part => part.Length == 2)
-            .ToDictionary(static part => part[0], static part => part[1], StringComparer.OrdinalIgnoreCase);
-
-        return new SubscriptionQuota(
-            ParseLong(fields, "upload"),
-            ParseLong(fields, "download"),
-            ParseLong(fields, "total"),
-            ParseExpiration(fields));
-    }
-
-    private static long? ParseLong(IReadOnlyDictionary<string, string> fields, string name)
-    {
-        return fields.TryGetValue(name, out var value)
-               && long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
-    }
-
-    private static DateTimeOffset? ParseExpiration(IReadOnlyDictionary<string, string> fields)
-    {
-        var seconds = ParseLong(fields, "expire");
-        if (seconds is null or <= 0)
-            return null;
-
-        try
-        {
-            return DateTimeOffset.FromUnixTimeSeconds(seconds.Value);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return null;
-        }
-    }
-
-    private static bool TryGetHeader(HttpResponseMessage response, string name, out string value)
-    {
-        if (response.Headers.TryGetValues(name, out var values)
-            || response.Content.Headers.TryGetValues(name, out values))
-        {
-            value = values.FirstOrDefault() ?? string.Empty;
-            return value.Length > 0;
-        }
-
-        value = string.Empty;
-        return false;
     }
 }

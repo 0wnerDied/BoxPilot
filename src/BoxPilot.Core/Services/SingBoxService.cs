@@ -16,6 +16,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     private readonly Func<ICoreServiceClient> coreServiceFactory = () => new CoreServiceClient(paths);
     private readonly Func<bool> isElevated = ProcessPrivileges.IsElevated;
     private ICoreServiceClient? coreService;
+    private string executablePath = string.Empty;
     private bool serviceCoreActive;
     private int? serviceProcessId;
     private CoreState state = CoreState.Stopped;
@@ -56,11 +57,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         }
     }
 
-    public string ExecutablePath { get; private set; } = string.Empty;
-
     public bool IsCoreServiceInstalled => CoreServiceInstaller.IsInstalled(paths);
 
-    public string ResolveExecutable(string? configuredPath = null)
+    private static string ResolveExecutable(string? configuredPath = null)
     {
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
@@ -103,11 +102,11 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         return Path.GetFullPath(match);
     }
 
-    public async Task<CoreVersionInfo> InitializeAsync(
+    public async Task<string> InitializeAsync(
         string? configuredPath = null,
         CancellationToken cancellationToken = default)
     {
-        ExecutablePath = ResolveExecutable(configuredPath);
+        executablePath = ResolveExecutable(configuredPath);
         var result = await RunCommandAsync(["version"], TimeSpan.FromSeconds(10), cancellationToken)
             .ConfigureAwait(false);
         if (!result.IsSuccess)
@@ -123,17 +122,6 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
         return RunCommandAsync(
             ["check", "-c", Path.GetFullPath(configurationPath)],
-            TimeSpan.FromSeconds(30),
-            cancellationToken);
-    }
-
-    public Task<CommandResult> FormatAsync(
-        string configurationPath,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configurationPath);
-        return RunCommandAsync(
-            ["format", "-c", Path.GetFullPath(configurationPath)],
             TimeSpan.FromSeconds(30),
             cancellationToken);
     }
@@ -166,7 +154,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         {
             if (process is { HasExited: false } || serviceCoreActive)
                 return;
-            if (string.IsNullOrWhiteSpace(ExecutablePath))
+            if (string.IsNullOrWhiteSpace(executablePath))
                 await InitializeAsync(cancellationToken: operationCancellation).ConfigureAwait(false);
 
             SetState(CoreState.Starting);
@@ -183,7 +171,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                 try
                 {
                     await client.StartAsync(
-                            ExecutablePath,
+                            executablePath,
                             Path.GetFullPath(configurationPath),
                             operationCancellation)
                         .ConfigureAwait(false);
@@ -212,11 +200,11 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                 EnableRaisingEvents = true,
             };
             newProcess.Exited += OnProcessExited;
+            process = newProcess;
 
             if (!newProcess.Start())
                 throw new InvalidOperationException("sing-box did not start.");
 
-            process = newProcess;
             logCancellation = new CancellationTokenSource();
             _ = ReadLinesAsync(
                 newProcess.StandardOutput,
@@ -333,13 +321,13 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             .ConfigureAwait(false);
     }
 
-    public async Task<CommandResult> RunCommandAsync(
+    private async Task<CommandResult> RunCommandAsync(
         IReadOnlyList<string> arguments,
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(ExecutablePath))
-            ExecutablePath = ResolveExecutable();
+        if (string.IsNullOrWhiteSpace(executablePath))
+            executablePath = ResolveExecutable();
 
         using var commandProcess = new Process
         {
@@ -375,7 +363,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        lifetime.Cancel();
+        await lifetime.CancelAsync().ConfigureAwait(false);
         try
         {
             using var timeout = new CancellationTokenSource(ShutdownTimeout);
@@ -398,7 +386,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = ExecutablePath,
+            FileName = executablePath,
             UseShellExecute = false,
             CreateNoWindow = true,
             StandardOutputEncoding = Utf8Text.Strict,
@@ -551,9 +539,8 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
         if (state == newState && error is null)
             return;
 
-        var previous = state;
         state = newState;
-        StateChanged?.Invoke(new CoreStateChangedEventArgs(previous, newState, processId, error));
+        StateChanged?.Invoke(new CoreStateChangedEventArgs(newState, processId, error));
     }
 
     private void WriteLog(CoreLogStream stream, string message)
@@ -573,21 +560,11 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
             runningProcess.Kill();
     }
 
-    private static CoreVersionInfo ParseVersion(string output)
+    private static string ParseVersion(string output)
     {
         var version = Regex.Match(output, @"sing-box version (?<value>[^\s]+)")
             .Groups["value"].Value;
-        var environment = Regex.Match(output, @"Environment:\s+\S+\s+(?<value>[^\r\n]+)")
-            .Groups["value"].Value.Trim();
-        var tagsValue = Regex.Match(output, @"Tags:\s*(?<value>[^\r\n]*)")
-            .Groups["value"].Value;
-        var tags = tagsValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        return new CoreVersionInfo(
-            string.IsNullOrWhiteSpace(version) ? "unknown" : version,
-            environment,
-            tags,
-            output.Trim());
+        return string.IsNullOrWhiteSpace(version) ? "unknown" : version;
     }
 
     [DllImport("libc", EntryPoint = "kill", SetLastError = true)]

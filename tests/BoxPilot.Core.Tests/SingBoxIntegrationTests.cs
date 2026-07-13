@@ -9,7 +9,7 @@ namespace BoxPilot.Core.Tests;
 
 public sealed class SingBoxIntegrationTests : IAsyncLifetime
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"boxpilot-tests-{Guid.NewGuid():N}");
+    private readonly TemporaryDirectory directory = new();
     private SingBoxService? core;
 
     [Theory]
@@ -17,7 +17,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     [InlineData(true)]
     public async Task InstalledCoreAcceptsStarterConfiguration(bool enableTun)
     {
-        var paths = new AppPaths(root);
+        var paths = new AppPaths(directory.Path);
         core = new SingBoxService(paths);
         try
         {
@@ -46,7 +46,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task InstalledCoreAcceptsManagedClashSelection()
     {
-        var paths = new AppPaths(root);
+        var paths = new AppPaths(directory.Path);
         core = new SingBoxService(paths);
         try
         {
@@ -91,7 +91,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task SwitchingFromTunServiceToLocalCoreDropsServiceLease()
     {
-        var paths = new AppPaths(root);
+        var paths = new AppPaths(directory.Path);
         var serviceClient = new FakeCoreServiceClient();
         core = new SingBoxService(paths, () => serviceClient, static () => false);
         try
@@ -105,8 +105,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
 
         var (mixedPort, apiPort) = ReserveTcpPorts();
         var configService = new SingBoxConfigService(paths, core);
-        var tunPath = Path.Combine(root, "tun.json");
-        var localPath = Path.Combine(root, "local.json");
+        var tunPath = Path.Combine(directory.Path, "tun.json");
+        var localPath = Path.Combine(directory.Path, "local.json");
         paths.EnsureCreated();
         await File.WriteAllTextAsync(
             tunPath,
@@ -148,8 +148,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     {
         if (core is not null)
             await core.DisposeAsync();
-        if (Directory.Exists(root))
-            Directory.Delete(root, true);
+        directory.Dispose();
     }
 
     private static (int First, int Second) ReserveTcpPorts()
@@ -181,7 +180,6 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
             CancellationToken cancellationToken)
         {
             StateChanged?.Invoke(new CoreStateChangedEventArgs(
-                CoreState.Stopped,
                 CoreState.Running,
                 42,
                 null));
@@ -191,7 +189,6 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
         public Task StopAsync(CancellationToken cancellationToken)
         {
             StateChanged?.Invoke(new CoreStateChangedEventArgs(
-                CoreState.Running,
                 CoreState.Stopped,
                 null,
                 null));

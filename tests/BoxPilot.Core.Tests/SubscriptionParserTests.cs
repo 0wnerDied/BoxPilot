@@ -6,9 +6,18 @@ using BoxPilot.Core.Subscriptions;
 
 namespace BoxPilot.Core.Tests;
 
-public sealed class SubscriptionParserTests : IDisposable
+public sealed class SubscriptionParserTests : IAsyncLifetime
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"boxpilot-tests-{Guid.NewGuid():N}");
+    private readonly TemporaryDirectory directory = new();
+    private readonly SingBoxService core;
+    private readonly SubscriptionParser parser;
+
+    public SubscriptionParserTests()
+    {
+        var paths = new AppPaths(directory.Path);
+        core = new SingBoxService(paths);
+        parser = new SubscriptionParser(new SingBoxConfigService(paths, core));
+    }
 
     [Fact]
     public void ParseClashYamlConvertsVlessGroupsAndRules()
@@ -37,8 +46,6 @@ public sealed class SubscriptionParserTests : IDisposable
                               - DOMAIN-SUFFIX,example.org,DIRECT
                               - MATCH,Select
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(yaml, CreateOptions());
 
         Assert.Equal(SubscriptionFormat.ClashYaml, result.Format);
@@ -64,8 +71,6 @@ public sealed class SubscriptionParserTests : IDisposable
     {
         const string uri = "trojan://secret@example.com:443?security=tls&sni=example.com#Primary";
         var subscription = Convert.ToBase64String(Encoding.UTF8.GetBytes(uri));
-        var parser = CreateParser();
-
         var result = parser.Parse(subscription, CreateOptions());
 
         Assert.Equal(SubscriptionFormat.Base64UriList, result.Format);
@@ -85,8 +90,6 @@ public sealed class SubscriptionParserTests : IDisposable
             + "?type=tcp&encryption=none&flow=xtls-rprx-vision&security=reality"
             + "&sni=www.example.com&fp=chrome&pbk=public-key&sid=01234567"
             + "#IPv6%20%E6%97%A5%E6%9C%AC";
-        var parser = CreateParser();
-
         var result = parser.Parse(subscription, CreateOptions());
 
         Assert.Equal(SubscriptionFormat.UriList, result.Format);
@@ -123,8 +126,6 @@ public sealed class SubscriptionParserTests : IDisposable
                               - GEOSITE,CN,Source group
                               - MATCH,Source group
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(yaml, CreateOptions());
 
         Assert.Empty(result.Warnings);
@@ -158,8 +159,6 @@ public sealed class SubscriptionParserTests : IDisposable
         prefix.CopyTo(bytes, 0);
         bytes[^1] = 0xff;
         var subscription = Convert.ToBase64String(bytes);
-        var parser = CreateParser();
-
         Assert.Throws<InvalidDataException>(() => parser.Parse(subscription, CreateOptions()));
     }
 
@@ -173,8 +172,6 @@ public sealed class SubscriptionParserTests : IDisposable
                               "route": { "final": "direct" }
                             }
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(json, CreateOptions());
 
         Assert.Equal(SubscriptionFormat.SingBoxJson, result.Format);
@@ -216,8 +213,6 @@ public sealed class SubscriptionParserTests : IDisposable
                               }
                             }
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(json, CreateOptions());
 
         Assert.Equal(SubscriptionFormat.SingBoxJson, result.Format);
@@ -237,8 +232,6 @@ public sealed class SubscriptionParserTests : IDisposable
                               "route": { "final": "direct", "override_android_vpn": true }
                             }
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(json, CreateOptions());
 
         Assert.Null(result.Configuration["route"]?["override_android_vpn"]);
@@ -256,21 +249,11 @@ public sealed class SubscriptionParserTests : IDisposable
                               "outbounds": [{ "type": "direct", "tag": "direct" }]
                             }
                             """;
-        var parser = CreateParser();
-
         var result = parser.Parse(json, CreateOptions());
 
         Assert.DoesNotContain(
             result.Configuration["inbounds"]!.AsArray(),
             inbound => inbound?["type"]?.ToString() == "tun");
-    }
-
-    private SubscriptionParser CreateParser()
-    {
-        var paths = new AppPaths(root);
-        var core = new SingBoxService(paths);
-        var config = new SingBoxConfigService(paths, core);
-        return new SubscriptionParser(config);
     }
 
     private static SubscriptionBuildOptions CreateOptions()
@@ -284,9 +267,11 @@ public sealed class SubscriptionParserTests : IDisposable
         };
     }
 
-    public void Dispose()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
-        if (Directory.Exists(root))
-            Directory.Delete(root, true);
+        await core.DisposeAsync();
+        directory.Dispose();
     }
 }

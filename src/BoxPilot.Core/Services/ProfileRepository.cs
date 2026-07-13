@@ -24,12 +24,6 @@ public sealed class ProfileRepository(AppPaths paths)
         }
     }
 
-    public async Task<Profile?> FindAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var profiles = await GetAllAsync(cancellationToken).ConfigureAwait(false);
-        return profiles.FirstOrDefault(profile => profile.Id == id);
-    }
-
     public async Task<Profile> CreateAsync(
         string name,
         string configuration,
@@ -134,11 +128,6 @@ public sealed class ProfileRepository(AppPaths paths)
             paths.GetProfileConfigPath(profile),
             configuration,
             cancellationToken);
-    }
-
-    public string GetConfigurationPath(Profile profile)
-    {
-        return paths.GetProfileConfigPath(profile);
     }
 
     private async Task<ProfileIndex> LoadIndexAsync(CancellationToken cancellationToken)

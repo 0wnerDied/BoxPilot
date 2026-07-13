@@ -43,7 +43,7 @@ internal static class CoreServiceTransport
             }
             catch
             {
-                pipe.Dispose();
+                await pipe.DisposeAsync().ConfigureAwait(false);
                 throw;
             }
         }

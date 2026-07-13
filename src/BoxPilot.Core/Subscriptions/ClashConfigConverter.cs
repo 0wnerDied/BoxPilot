@@ -18,9 +18,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
         }
 
         var proxies = JsonValueReader.Array(clash, "proxies") ?? [];
-        var allocator = new SingBoxConfigurationBuilder.TagAllocator();
-        allocator.Allocate("direct");
-        allocator.Allocate("block");
+        var allocator = new SingBoxConfigurationBuilder.TagAllocator(["direct", "block"]);
 
         var tagMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -69,8 +67,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
                 tagMap,
                 nodeTags,
                 warnings);
-            if (converted is not null)
-                JsonNodes.Append(outbounds, converted);
+            JsonNodes.Append(outbounds, converted);
         }
 
         string defaultOutbound;
@@ -135,7 +132,7 @@ internal sealed class ClashConfigConverter(SingBoxConfigService configService)
             groupSources.Length);
     }
 
-    private static JsonObject? ConvertGroup(
+    private static JsonObject ConvertGroup(
         JsonObject source,
         string tag,
         IReadOnlyDictionary<string, string> tagMap,

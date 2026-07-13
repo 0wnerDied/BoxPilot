@@ -25,7 +25,6 @@ public sealed class AppRuntime : IAsyncDisposable
             config,
             profileRepository);
         Localization = new LocalizationService();
-        var themes = new ThemeService();
         Session = new AppSessionViewModel(
             paths,
             settingsStore,
@@ -33,8 +32,7 @@ public sealed class AppRuntime : IAsyncDisposable
             singBox,
             config,
             profileImporter,
-            Localization,
-            themes);
+            Localization);
     }
 
     public LocalizationService Localization { get; }

@@ -272,7 +272,7 @@ public static class CoreServiceHost
         {
             core.LogReceived -= logHandler;
             core.StateChanged -= stateHandler;
-            connectionCancellation.Cancel();
+            await connectionCancellation.CancelAsync().ConfigureAwait(false);
             logs.Writer.TryComplete();
             try
             {

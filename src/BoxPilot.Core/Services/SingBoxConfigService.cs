@@ -206,36 +206,12 @@ public sealed class SingBoxConfigService(
 
     public JsonObject CreateStarterConfiguration(AppSettings settings)
     {
-        var configuration = new JsonObject
-        {
-            ["log"] = new JsonObject
-            {
-                ["level"] = "info",
-                ["timestamp"] = true,
-            },
-            ["dns"] = new JsonObject
-            {
-                ["servers"] = new JsonArray(
-                    new JsonObject
-                    {
-                        ["type"] = "local",
-                        ["tag"] = "dns-local",
-                    }),
-                ["final"] = "dns-local",
-            },
-            ["outbounds"] = new JsonArray(
+        var configuration = SingBoxConfigurationBuilder.CreateBaseConfiguration(
+            new JsonArray(
                 new JsonObject { ["type"] = "direct", ["tag"] = "direct" },
                 new JsonObject { ["type"] = "block", ["tag"] = "block" }),
-            ["route"] = new JsonObject
-            {
-                ["rules"] = new JsonArray(
-                    new JsonObject { ["action"] = "sniff" },
-                    new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" }),
-                ["final"] = "direct",
-                ["auto_detect_interface"] = true,
-            },
-        };
-
+            "direct",
+            dnsStrategy: null);
         return ApplyRuntimeOptions(configuration, settings);
     }
 
