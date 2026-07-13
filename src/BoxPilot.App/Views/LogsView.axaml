@@ -5,7 +5,7 @@
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.LogsView"
              x:DataType="vm:LogsViewModel">
-  <Grid RowDefinitions="Auto,24,*">
+  <Grid RowDefinitions="Auto,14,Auto,14,*">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
       <StackPanel>
         <TextBlock Text="{DynamicResource LogsTitle}" Classes="page-title" />
@@ -17,19 +17,26 @@
       </StackPanel>
     </Grid>
 
-    <Border Grid.Row="2" Classes="dark-panel" Padding="0">
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+      <TextBox Text="{Binding SearchText}" PlaceholderText="{DynamicResource SearchLogs}"
+               MinHeight="38" />
+      <TextBlock Grid.Column="1" Text="{Binding ResultCount}" Classes="faint"
+                 VerticalAlignment="Center" />
+    </Grid>
+
+    <Border Grid.Row="4" Classes="dark-panel" Padding="0">
       <Grid RowDefinitions="40,1,*">
         <Grid Margin="16,0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
               VerticalAlignment="Center">
           <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}" />
           <TextBlock Grid.Column="1" Text="{DynamicResource LiveOutput}" Classes="dark-muted"
                      FontSize="12" LetterSpacing="0.8" />
-          <TextBlock Grid.Column="2" Text="{Binding Session.Logs.Count}"
+          <TextBlock Grid.Column="2" Text="{Binding ResultCount}"
                      Classes="dark-muted" FontSize="12" />
         </Grid>
         <Border Grid.Row="1" Background="#28FFFFFF" />
         <ListBox Grid.Row="2" x:Name="LogList" Classes="log-list"
-                 ItemsSource="{Binding Session.Logs}"
+                 ItemsSource="{Binding VisibleLogs}"
                  Background="Transparent" BorderThickness="0"
                  FontFamily="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace"
                  FontSize="13">

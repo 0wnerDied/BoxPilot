@@ -26,7 +26,7 @@ public partial class LogsView : UserControl
 
     private void OnLogsChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
     {
-        if (viewModel?.AutoScroll == true && viewModel.Session.Logs.LastOrDefault() is { } latest)
+        if (viewModel?.AutoScroll == true && viewModel.VisibleLogs.LastOrDefault() is { } latest)
             LogList.ScrollIntoView(latest);
     }
 
@@ -35,7 +35,7 @@ public partial class LogsView : UserControl
         if (isSubscribed || viewModel is null)
             return;
 
-        viewModel.Session.Logs.CollectionChanged += OnLogsChanged;
+        viewModel.VisibleLogs.CollectionChanged += OnLogsChanged;
         isSubscribed = true;
     }
 
@@ -44,7 +44,7 @@ public partial class LogsView : UserControl
         if (!isSubscribed || viewModel is null)
             return;
 
-        viewModel.Session.Logs.CollectionChanged -= OnLogsChanged;
+        viewModel.VisibleLogs.CollectionChanged -= OnLogsChanged;
         isSubscribed = false;
     }
 }
