@@ -34,7 +34,7 @@ public partial class SettingsViewModel : ViewModelBase
     public partial LanguageOption? Language { get; set; }
 
     [ObservableProperty]
-    public partial string CorePath { get; set; } = string.Empty;
+    public partial string? CorePath { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial int MixedPort { get; set; } = 2080;
@@ -49,7 +49,7 @@ public partial class SettingsViewModel : ViewModelBase
     public partial bool AllowLan { get; set; }
 
     [ObservableProperty]
-    public partial string CustomDnsServer { get; set; } = string.Empty;
+    public partial string? CustomDnsServer { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial bool EnableTun { get; set; }
@@ -67,12 +67,12 @@ public partial class SettingsViewModel : ViewModelBase
         {
             Theme = Theme?.Code ?? "Light",
             Language = Language?.Code ?? "zh-CN",
-            SingBoxPath = CorePath.Trim(),
+            SingBoxPath = CorePath?.Trim() ?? string.Empty,
             MixedPort = Math.Clamp(MixedPort, 1, 65_535),
             ClashApiPort = Math.Clamp(ApiPort, 1, 65_535),
             EnableSystemProxy = EnableSystemProxy,
             AllowLan = AllowLan,
-            CustomDnsServer = CustomDnsServer.Trim(),
+            CustomDnsServer = CustomDnsServer?.Trim() ?? string.Empty,
             EnableTun = EnableTun,
             StartCoreOnLaunch = StartCoreOnLaunch,
             CloseToTray = CloseToTray,
@@ -91,12 +91,12 @@ public partial class SettingsViewModel : ViewModelBase
         var settings = Session.Settings;
         RefreshThemes(settings.Theme);
         Language = Languages.FirstOrDefault(item => item.Code == settings.Language) ?? Languages[0];
-        CorePath = settings.SingBoxPath;
+        CorePath = settings.SingBoxPath ?? string.Empty;
         MixedPort = settings.MixedPort;
         ApiPort = settings.ClashApiPort;
         EnableSystemProxy = settings.EnableSystemProxy;
         AllowLan = settings.AllowLan;
-        CustomDnsServer = settings.CustomDnsServer;
+        CustomDnsServer = settings.CustomDnsServer ?? string.Empty;
         EnableTun = settings.EnableTun;
         StartCoreOnLaunch = settings.StartCoreOnLaunch;
         CloseToTray = settings.CloseToTray;
