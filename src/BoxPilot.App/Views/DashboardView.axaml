@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:BoxPilot.App.Controls"
+             xmlns:primitives="using:Avalonia.Controls.Primitives"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
@@ -31,16 +32,10 @@
         <Button Classes="ghost" Content="{DynamicResource Restart}"
                 Command="{Binding RestartCommand}" IsEnabled="{Binding Session.CanStopCore}"
                 IsVisible="{Binding Session.IsCoreRunning}" />
-        <Button Classes="ghost icon" Content="•••"
+        <Button Classes="danger" Content="{DynamicResource Stop}"
+                Command="{Binding StopCommand}"
                 IsEnabled="{Binding Session.CanStopCore}"
-                IsVisible="{Binding Session.IsCoreRunning}"
-                ToolTip.Tip="{DynamicResource MoreActions}">
-          <Button.Flyout>
-            <MenuFlyout>
-              <MenuItem Header="{DynamicResource Stop}" Command="{Binding StopCommand}" />
-            </MenuFlyout>
-          </Button.Flyout>
-        </Button>
+                IsVisible="{Binding Session.IsCoreRunning}" />
         <Button Classes="primary" Content="{DynamicResource Start}"
                 Command="{Binding StartCommand}" IsEnabled="{Binding Session.CanStartCore}"
                 IsVisible="{Binding !Session.IsCoreRunning}" />
@@ -135,14 +130,15 @@
                                  Samples="{Binding Session.TrafficHistory}"
                                  DownloadStroke="{DynamicResource SuccessBrush}"
                                  UploadStroke="{DynamicResource AccentBrush}"
-                                 GridStroke="{DynamicResource CardBorderBrush}" />
+                                 GridStroke="{DynamicResource CardBorderBrush}"
+                                 AxisForeground="{DynamicResource FaintTextBrush}" />
         </Grid>
       </Grid>
     </Border>
 
     <Border Grid.Row="4" Classes="workspace"
             IsVisible="{Binding ShowProxySelection}">
-      <Grid ColumnDefinitions="244,*">
+      <Grid ColumnDefinitions="270,*">
         <Border Background="{DynamicResource SurfaceSubtleBrush}">
           <Grid RowDefinitions="54,*">
             <Grid Margin="18,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
@@ -160,9 +156,9 @@
                     <Grid Margin="11,7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                       <StackPanel Spacing="3">
                         <TextBlock Text="{Binding DisplayName}" FontSize="14"
-                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding SelectionDisplay}" Classes="muted"
-                                   FontSize="12" TextTrimming="CharacterEllipsis" />
+                                   FontSize="12" TextWrapping="Wrap" />
                       </StackPanel>
                       <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
                                  Classes="faint numeric" FontSize="12"
@@ -179,36 +175,37 @@
           </Grid>
         </Border>
 
-        <Grid Grid.Column="1" RowDefinitions="64,*">
-          <Grid Margin="16,10" ColumnDefinitions="160,*,Auto,Auto,Auto,40"
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+          <Grid Margin="16,10" MinHeight="44"
+                ColumnDefinitions="*,220,Auto,Auto,Auto"
                 ColumnSpacing="10">
             <StackPanel VerticalAlignment="Center" Spacing="2">
               <TextBlock Text="{Binding SelectedGroup.DisplayName, FallbackValue=—}"
-                         FontSize="15" FontWeight="SemiBold"
-                         TextTrimming="CharacterEllipsis" />
+                         FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
               <TextBlock Text="{Binding SelectedGroup.SelectionDisplay, FallbackValue=—}"
-                         Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                         Classes="muted" FontSize="12" TextWrapping="Wrap" />
             </StackPanel>
             <TextBox Grid.Column="1" Text="{Binding SearchText}"
                      PlaceholderText="{DynamicResource SearchNodes}" />
-            <CheckBox Grid.Column="2" Content="{DynamicResource SortByLatency}"
-                      IsChecked="{Binding SortByLatency}" VerticalAlignment="Center" />
+            <CheckBox Grid.Column="2" Content="{DynamicResource SortByUtf8}"
+                      IsChecked="{Binding SortByUtf8}" VerticalAlignment="Center" />
             <TextBlock Grid.Column="3" Text="{Binding NodeCountDisplay}"
                        Classes="faint numeric" FontSize="12" VerticalAlignment="Center" />
             <Button Grid.Column="4" Classes="primary"
                     Content="{DynamicResource TestAll}"
                     Command="{Binding TestAllCommand}"
                     IsEnabled="{Binding Session.IsCoreRunning}" />
-            <Button Grid.Column="5" Classes="ghost icon" Content="↻"
-                    Command="{Binding RefreshProxiesCommand}"
-                    IsEnabled="{Binding Session.IsCoreRunning}"
-                    ToolTip.Tip="{DynamicResource Refresh}" />
           </Grid>
 
           <Grid Grid.Row="1">
             <ListBox Classes="node-list" ItemsSource="{Binding VisibleNodes}"
                      Background="Transparent" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <primitives:UniformGrid Columns="2" VerticalAlignment="Top" />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProxyNodeItemViewModel">
                   <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
@@ -223,8 +220,7 @@
                           </Grid>
                           <StackPanel Grid.Column="1" Spacing="2">
                             <TextBlock Text="{Binding Name}" FontSize="14"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis" />
+                                       FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding TypeDisplay}" Classes="muted"
                                        FontSize="12" />
                           </StackPanel>

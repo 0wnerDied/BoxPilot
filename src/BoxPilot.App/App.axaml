@@ -236,9 +236,11 @@
     </Style>
     <Style Selector="Button">
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="Padding" Value="14,9,14,7" />
       <Setter Property="MinHeight" Value="40" />
       <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
       <Setter Property="Transitions">
         <Transitions>
@@ -285,7 +287,7 @@
     </Style>
     <Style Selector="Button.compact">
       <Setter Property="MinHeight" Value="38" />
-      <Setter Property="Padding" Value="11,7" />
+      <Setter Property="Padding" Value="11,8,11,6" />
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="FontSize" Value="13" />
     </Style>
@@ -305,7 +307,7 @@
       <Setter Property="MinHeight" Value="34" />
       <Setter Property="Width" Value="72" />
       <Setter Property="MinWidth" Value="72" />
-      <Setter Property="Padding" Value="0,6" />
+      <Setter Property="Padding" Value="0,7,0,5" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -327,7 +329,7 @@
     </Style>
     <Style Selector="Button.chip">
       <Setter Property="MinHeight" Value="32" />
-      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="Padding" Value="10,6,10,4" />
       <Setter Property="CornerRadius" Value="99" />
       <Setter Property="FontSize" Value="12" />
     </Style>
@@ -337,7 +339,7 @@
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0,0,0,2" />
       <Setter Property="CornerRadius" Value="0" />
-      <Setter Property="Padding" Value="11,2" />
+      <Setter Property="Padding" Value="11,3,11,1" />
       <Setter Property="FontSize" Value="14" />
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
@@ -374,6 +376,19 @@
       <Setter Property="FontFamily"
               Value="SFMono-Regular, Cascadia Code, Noto Sans Mono CJK SC, Consolas, monospace" />
       <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="TextBox.command-input:pointerover,
+                     TextBox.command-input:focus,
+                     TextBox.command-input:focus-within">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CodeForegroundBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.command-input:pointerover /template/ Border#PART_BorderElement,
+                     TextBox.command-input:focus /template/ Border#PART_BorderElement,
+                     TextBox.command-input:focus-within /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource CodeBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="ComboBox">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -445,7 +460,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
       <Setter Property="BorderThickness" Value="0,0,0,1" />
-      <Setter Property="Margin" Value="18,0" />
+      <Setter Property="Margin" Value="10,0" />
     </Style>
     <Style Selector="Border.node-row.selected">
       <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
@@ -455,7 +470,7 @@
       <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="0" />
-      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="Padding" Value="10,8,10,6" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
@@ -471,13 +486,20 @@
       <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="34" />
       <Setter Property="MinHeight" Value="34" />
       <Setter Property="MinWidth" Value="56" />
-      <Setter Property="Padding" Value="9,6" />
+      <Setter Property="Padding" Value="9,7,9,5" />
       <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.node-test:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}" />
+    </Style>
+    <Style Selector="Button.node-test:pointerover, Button.node-test:pressed">
+      <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
     </Style>
     <Style Selector="TextBlock.node-delay">
       <Setter Property="Foreground" Value="{DynamicResource FaintTextBrush}" />
