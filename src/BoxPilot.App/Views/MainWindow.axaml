@@ -88,9 +88,11 @@
       </Grid>
     </Border>
 
-    <ItemsControl Grid.RowSpan="3" ItemsSource="{Binding Session.Toast.Items}"
+    <ItemsControl x:Name="ToastRegion" Grid.RowSpan="3"
+                  ItemsSource="{Binding Session.Toast.Items}"
                   HorizontalAlignment="Right" VerticalAlignment="Top"
-                  Width="420" Margin="0,82,36,0" ZIndex="100">
+                  Width="420" Margin="0,82,36,0" ZIndex="100"
+                  IsHitTestVisible="False">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
           <StackPanel Spacing="9" />
@@ -99,8 +101,9 @@
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ToastItemViewModel">
           <Border Classes="toast"
-                  Classes.dismissing="{Binding IsDismissing}">
-            <Grid ColumnDefinitions="3,12,*,Auto">
+                  Classes.dismissing="{Binding IsDismissing}"
+                  Classes.pointer-over="{Binding IsPointerOver}">
+            <Grid ColumnDefinitions="3,12,*">
               <Border Classes="toast-indicator"
                       Classes.success="{Binding IsSuccess}"
                       Classes.error="{Binding IsError}"
@@ -112,9 +115,6 @@
                 <TextBlock Text="{Binding Message}" Classes="on-dark"
                            FontSize="14" TextWrapping="Wrap" />
               </ScrollViewer>
-              <Button Grid.Column="3" Classes="toast-close" Content="×"
-                      Command="{Binding DismissCommand}"
-                      VerticalAlignment="Top" Margin="10,-2,-3,0" />
             </Grid>
           </Border>
         </DataTemplate>

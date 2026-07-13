@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace BoxPilot.App.ViewModels;
 
@@ -15,17 +14,12 @@ public enum ToastLevel
 
 public sealed partial class ToastItemViewModel : ViewModelBase
 {
-    private readonly Action<ToastItemViewModel> dismiss;
     private readonly ToastLevel level;
 
-    public ToastItemViewModel(
-        string message,
-        ToastLevel level,
-        Action<ToastItemViewModel> dismiss)
+    public ToastItemViewModel(string message, ToastLevel level)
     {
         Message = message;
         this.level = level;
-        this.dismiss = dismiss;
     }
 
     public string Message { get; }
@@ -37,11 +31,8 @@ public sealed partial class ToastItemViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsDismissing { get; set; }
 
-    [RelayCommand]
-    private void Dismiss()
-    {
-        dismiss(this);
-    }
+    [ObservableProperty]
+    public partial bool IsPointerOver { get; set; }
 }
 
 public sealed class ToastViewModel : IDisposable
@@ -53,6 +44,7 @@ public sealed class ToastViewModel : IDisposable
     private readonly DispatcherTimer fadeTimer;
     private readonly DispatcherTimer removalTimer;
     private bool disposed;
+    private bool isPointerOver;
 
     public ToastViewModel()
     {
@@ -76,9 +68,22 @@ public sealed class ToastViewModel : IDisposable
         if (Items.Count == MaximumQueuedItems)
             Items.RemoveAt(Items.Count - 1);
 
-        Items.Add(new ToastItemViewModel(message.Trim(), level, Dismiss));
+        Items.Add(new ToastItemViewModel(message.Trim(), level)
+        {
+            IsPointerOver = isPointerOver,
+        });
         if (Items.Count == 1)
             StartCurrentLifetime();
+    }
+
+    public void SetPointerOver(bool value)
+    {
+        if (disposed || isPointerOver == value)
+            return;
+
+        isPointerOver = value;
+        foreach (var item in Items)
+            item.IsPointerOver = value;
     }
 
     public void Dispose()
@@ -90,28 +95,6 @@ public sealed class ToastViewModel : IDisposable
         fadeTimer.Stop();
         removalTimer.Stop();
         Items.Clear();
-    }
-
-    private void Dismiss(ToastItemViewModel item)
-    {
-        if (Items.Count == 0)
-            return;
-
-        if (!ReferenceEquals(Items[0], item))
-        {
-            Items.Remove(item);
-            return;
-        }
-
-        if (item.IsDismissing)
-        {
-            RemoveCurrent(this, EventArgs.Empty);
-            return;
-        }
-
-        fadeTimer.Stop();
-        item.IsDismissing = true;
-        removalTimer.Start();
     }
 
     private void StartCurrentLifetime()

@@ -177,6 +177,9 @@
     <Style Selector="Border.toast.dismissing">
       <Setter Property="Opacity" Value="0" />
     </Style>
+    <Style Selector="Border.toast.pointer-over">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
     <Style Selector="Border.toast-indicator">
       <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     </Style>
@@ -230,20 +233,6 @@
       <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
       <Setter Property="BorderBrush" Value="#55A5574B" />
       <Setter Property="BorderThickness" Value="1" />
-    </Style>
-    <Style Selector="Button.toast-close">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource DarkMutedBrush}" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="4,0" />
-      <Setter Property="FontSize" Value="18" />
-      <Setter Property="FontWeight" Value="Normal" />
-    </Style>
-    <Style Selector="Button.toast-close:pointerover">
-      <Setter Property="Foreground" Value="{DynamicResource DarkTextBrush}" />
-    </Style>
-    <Style Selector="Button.toast-close:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.nav">
       <Setter Property="Background" Value="Transparent" />
