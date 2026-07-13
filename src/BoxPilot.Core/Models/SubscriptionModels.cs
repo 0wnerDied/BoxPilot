@@ -51,6 +51,8 @@ public sealed record ProxyChoice(
 
 public sealed record TrafficSnapshot(long UploadBytesPerSecond, long DownloadBytesPerSecond);
 
+public sealed record TrafficTotals(long UploadBytes, long DownloadBytes);
+
 public sealed record ProfileImportOutcome(
     Profile Profile,
     IReadOnlyList<string> Warnings,

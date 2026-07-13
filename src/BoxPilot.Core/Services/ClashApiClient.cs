@@ -164,6 +164,18 @@ public sealed class ClashApiClient : IDisposable
         }
     }
 
+    public async Task<TrafficTotals> GetTrafficTotalsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, "connections");
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var json = await ReadObjectAsync(response.Content, cancellationToken).ConfigureAwait(false);
+        return new TrafficTotals(
+            ReadNonNegativeInt64(json, "uploadTotal"),
+            ReadNonNegativeInt64(json, "downloadTotal"));
+    }
+
     public void Dispose()
     {
         if (ownsClient)
@@ -212,5 +224,13 @@ public sealed class ClashApiClient : IDisposable
         }
 
         return value;
+    }
+
+    private static long ReadNonNegativeInt64(JsonObject? value, string propertyName)
+    {
+        return value?[propertyName] is JsonValue property
+               && property.TryGetValue<long>(out var result)
+            ? Math.Max(0, result)
+            : 0;
     }
 }

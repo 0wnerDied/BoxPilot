@@ -111,4 +111,35 @@ public sealed class ClashApiClientTests
         Assert.Equal("/configs", path);
         Assert.Equal("direct", JsonNode.Parse(requestBody!)?["mode"]?.ToString());
     }
+
+    [Fact]
+    public async Task GetTrafficTotalsReadsConnectionCounters()
+    {
+        const string responseJson = """
+            {
+              "downloadTotal": 987654321,
+              "uploadTotal": 123456789,
+              "connections": []
+            }
+            """;
+        Uri? requestUri = null;
+        string? authorization = null;
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            requestUri = request.RequestUri;
+            authorization = request.Headers.Authorization?.ToString();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseJson, Encoding.UTF8, "application/json"),
+            };
+        }));
+        using var client = new ClashApiClient(9090, "test-secret", httpClient);
+
+        var totals = await client.GetTrafficTotalsAsync();
+
+        Assert.Equal("/connections", requestUri?.AbsolutePath);
+        Assert.Equal("Bearer test-secret", authorization);
+        Assert.Equal(123456789, totals.UploadBytes);
+        Assert.Equal(987654321, totals.DownloadBytes);
+    }
 }

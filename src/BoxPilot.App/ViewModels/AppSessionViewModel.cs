@@ -13,6 +13,13 @@ namespace BoxPilot.App.ViewModels;
 
 public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 {
+    // sing-box publishes one traffic sample per second; one minute keeps redraw and memory bounded.
+    private const int MaximumTrafficSamples = 60;
+    private static readonly string[] TrafficRateUnits = ["B/s", "KiB/s", "MiB/s", "GiB/s"];
+    private static readonly string[] TrafficTotalUnits = ["B", "KiB", "MiB", "GiB", "TiB"];
+    private static readonly TimeSpan TrafficReconnectDelay = TimeSpan.FromSeconds(2);
+    // /connections includes every active connection, so use it only to correct locally accumulated totals.
+    private static readonly TimeSpan TrafficTotalsInterval = TimeSpan.FromSeconds(30);
     private readonly AppPaths paths;
     private readonly SettingsStore settingsStore;
     private readonly ProfileRepository profileRepository;
@@ -29,6 +36,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private CancellationTokenSource? trafficCancellation;
     private long uploadBytesPerSecond;
     private long downloadBytesPerSecond;
+    private long uploadBytesTotal;
+    private long downloadBytesTotal;
     private bool suppressConfigurationDirty;
     private bool suppressProfileLoad;
     private ClashApiConnection? clashApiConnection;
@@ -72,6 +81,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<CustomRuleSet> CustomRuleSets { get; } = [];
 
     public ObservableCollection<RoutingOutbound> RoutingOutbounds { get; } = [];
+
+    public ObservableCollection<TrafficSnapshot> TrafficHistory { get; } = [];
 
     public ToastViewModel Toast { get; } = new();
 
@@ -137,6 +148,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public string UploadRate => FormatRate(uploadBytesPerSecond);
 
     public string DownloadRate => FormatRate(downloadBytesPerSecond);
+
+    public string UploadTotal => FormatBytes(uploadBytesTotal);
+
+    public string DownloadTotal => FormatBytes(downloadBytesTotal);
 
     public string ActiveNodeDisplay => $"{SelectedProfile?.NodeCount ?? 0} {localization["Nodes"]}";
 
@@ -1112,35 +1127,96 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private void StartTrafficMonitor()
     {
         StopTrafficMonitor();
-        trafficCancellation = new CancellationTokenSource();
-        var cancellationToken = trafficCancellation.Token;
+        ResetTrafficSession();
+        var monitor = new CancellationTokenSource();
+        var cancellationToken = monitor.Token;
+        trafficCancellation = monitor;
+        _ = Task.Run(
+            () => MonitorTrafficRatesAsync(monitor, cancellationToken),
+            cancellationToken);
+        _ = Task.Run(
+            () => MonitorTrafficTotalsAsync(monitor, cancellationToken),
+            cancellationToken);
+    }
 
-        _ = Task.Run(async () =>
+    private async Task MonitorTrafficRatesAsync(
+        CancellationTokenSource monitor,
+        CancellationToken cancellationToken)
+    {
+        var progress = new Progress<TrafficSnapshot>(snapshot => Dispatcher.UIThread.Post(() =>
         {
-            while (!cancellationToken.IsCancellationRequested)
+            if (!IsCurrentTrafficMonitor(monitor, cancellationToken))
+                return;
+
+            uploadBytesPerSecond = snapshot.UploadBytesPerSecond;
+            downloadBytesPerSecond = snapshot.DownloadBytesPerSecond;
+            uploadBytesTotal = AddTrafficBytes(uploadBytesTotal, snapshot.UploadBytesPerSecond);
+            downloadBytesTotal = AddTrafficBytes(downloadBytesTotal, snapshot.DownloadBytesPerSecond);
+            TrafficHistory.Add(snapshot);
+            while (TrafficHistory.Count > MaximumTrafficSamples)
+                TrafficHistory.RemoveAt(0);
+            OnPropertyChanged(nameof(UploadRate));
+            OnPropertyChanged(nameof(DownloadRate));
+            OnPropertyChanged(nameof(UploadTotal));
+            OnPropertyChanged(nameof(DownloadTotal));
+        }));
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
             {
-                try
-                {
-                    using var client = CreateClashApiClient();
-                    var progress = new Progress<TrafficSnapshot>(snapshot => Dispatcher.UIThread.Post(() =>
-                    {
-                        uploadBytesPerSecond = snapshot.UploadBytesPerSecond;
-                        downloadBytesPerSecond = snapshot.DownloadBytesPerSecond;
-                        OnPropertyChanged(nameof(UploadRate));
-                        OnPropertyChanged(nameof(DownloadRate));
-                    }));
-                    await client.StreamTrafficAsync(progress, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
+                using var client = CreateClashApiClient();
+                await client.StreamTrafficAsync(progress, cancellationToken);
+                if (!await DelayTrafficReconnectAsync(cancellationToken))
                     return;
-                }
-                catch
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch
+            {
+                if (!await DelayTrafficReconnectAsync(cancellationToken))
+                    return;
+            }
+        }
+    }
+
+    private async Task MonitorTrafficTotalsAsync(
+        CancellationTokenSource monitor,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var client = CreateClashApiClient();
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    var totals = await client.GetTrafficTotalsAsync(cancellationToken);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!IsCurrentTrafficMonitor(monitor, cancellationToken))
+                            return;
+
+                        uploadBytesTotal = totals.UploadBytes;
+                        downloadBytesTotal = totals.DownloadBytes;
+                        OnPropertyChanged(nameof(UploadTotal));
+                        OnPropertyChanged(nameof(DownloadTotal));
+                    });
+                    await Task.Delay(TrafficTotalsInterval, cancellationToken);
                 }
             }
-        }, cancellationToken);
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch
+            {
+                if (!await DelayTrafficReconnectAsync(cancellationToken))
+                    return;
+            }
+        }
     }
 
     private void StopTrafficMonitor()
@@ -1152,6 +1228,37 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         downloadBytesPerSecond = 0;
         OnPropertyChanged(nameof(UploadRate));
         OnPropertyChanged(nameof(DownloadRate));
+    }
+
+    private void ResetTrafficSession()
+    {
+        uploadBytesTotal = 0;
+        downloadBytesTotal = 0;
+        TrafficHistory.Clear();
+        OnPropertyChanged(nameof(UploadTotal));
+        OnPropertyChanged(nameof(DownloadTotal));
+    }
+
+    private bool IsCurrentTrafficMonitor(
+        CancellationTokenSource monitor,
+        CancellationToken cancellationToken)
+    {
+        return !cancellationToken.IsCancellationRequested
+               && ReferenceEquals(trafficCancellation, monitor);
+    }
+
+    private static async Task<bool> DelayTrafficReconnectAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TrafficReconnectDelay, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     private void ShowImportOutcomeToast(ProfileImportOutcome outcome, string successMessage)
@@ -1201,16 +1308,33 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     private static string FormatRate(long bytesPerSecond)
     {
-        string[] units = ["B/s", "KiB/s", "MiB/s", "GiB/s"];
-        var value = Math.Max(0, bytesPerSecond);
+        return FormatTrafficValue(bytesPerSecond, TrafficRateUnits);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        return FormatTrafficValue(bytes, TrafficTotalUnits);
+    }
+
+    private static string FormatTrafficValue(long bytes, IReadOnlyList<string> units)
+    {
+        var value = Math.Max(0, bytes);
         var unit = 0;
         var display = (double)value;
-        while (display >= 1024 && unit < units.Length - 1)
+        while (display >= 1024 && unit < units.Count - 1)
         {
             display /= 1024;
             unit++;
         }
 
         return $"{display:0.#} {units[unit]}";
+    }
+
+    private static long AddTrafficBytes(long total, long bytesPerSecond)
+    {
+        var increment = Math.Max(0, bytesPerSecond);
+        return total > long.MaxValue - increment
+            ? long.MaxValue
+            : total + increment;
     }
 }
