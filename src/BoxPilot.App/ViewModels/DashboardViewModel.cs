@@ -17,13 +17,14 @@ public partial class DashboardViewModel(
     private bool isRefreshingProxies;
     private bool isTestingGroup;
     private bool isSwitchingNode;
+    private int visibleNodeCount;
     private IReadOnlyList<ProxyChoice> allProxyChoices = [];
 
     public AppSessionViewModel Session { get; } = session;
 
     public ObservableCollection<ProxyGroupItemViewModel> ProxyGroups { get; } = [];
 
-    public ObservableCollection<ProxyNodeItemViewModel> VisibleNodes { get; } = [];
+    public ObservableCollection<ProxyNodeRowViewModel> VisibleNodeRows { get; } = [];
 
     [ObservableProperty]
     public partial ProxyGroupItemViewModel? SelectedGroup { get; set; }
@@ -33,7 +34,7 @@ public partial class DashboardViewModel(
 
     public bool HasProxyGroups => ProxyGroups.Count > 0;
 
-    public bool HasVisibleNodes => VisibleNodes.Count > 0;
+    public bool HasVisibleNodes => visibleNodeCount > 0;
 
     public bool IsRuleMode => string.Equals(Session.Settings.RoutingMode, "Rule", StringComparison.OrdinalIgnoreCase);
 
@@ -52,7 +53,7 @@ public partial class DashboardViewModel(
             var total = SelectedGroup?.Nodes.Count ?? 0;
             return string.IsNullOrWhiteSpace(SearchText)
                 ? $"{total}"
-                : $"{VisibleNodes.Count}/{total}";
+                : $"{visibleNodeCount}/{total}";
         }
     }
 
@@ -255,9 +256,24 @@ public partial class DashboardViewModel(
                 StringComparison.OrdinalIgnoreCase));
         }
 
-        VisibleNodes.Clear();
+        VisibleNodeRows.Clear();
+        ProxyNodeItemViewModel? first = null;
+        visibleNodeCount = 0;
         foreach (var node in nodes)
-            VisibleNodes.Add(node);
+        {
+            visibleNodeCount++;
+            if (first is null)
+            {
+                first = node;
+                continue;
+            }
+
+            VisibleNodeRows.Add(new ProxyNodeRowViewModel(first, node));
+            first = null;
+        }
+
+        if (first is not null)
+            VisibleNodeRows.Add(new ProxyNodeRowViewModel(first, null));
         OnPropertyChanged(nameof(HasVisibleNodes));
         OnPropertyChanged(nameof(NodeCountDisplay));
     }
@@ -267,7 +283,8 @@ public partial class DashboardViewModel(
         allProxyChoices = [];
         SelectedGroup = null;
         ProxyGroups.Clear();
-        VisibleNodes.Clear();
+        VisibleNodeRows.Clear();
+        visibleNodeCount = 0;
         NotifyProxyCounts();
     }
 

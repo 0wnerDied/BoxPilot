@@ -7,6 +7,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace BoxPilot.App.ViewModels;
 
+public sealed record ProxyNodeRowViewModel(
+    ProxyNodeItemViewModel First,
+    ProxyNodeItemViewModel? Second);
+
 public sealed partial class ProxyGroupItemViewModel : ViewModelBase
 {
     private readonly LocalizationService localization;

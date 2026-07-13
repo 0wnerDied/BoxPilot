@@ -1,10 +1,49 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:BoxPilot.App.Controls"
-             xmlns:primitives="using:Avalonia.Controls.Primitives"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
+  <UserControl.Resources>
+    <DataTemplate x:Key="ProxyNodeTemplate" x:DataType="vm:ProxyNodeItemViewModel">
+      <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
+        <Grid ColumnDefinitions="*,64">
+          <Button Classes="node-select" Command="{Binding SelectCommand}"
+                  IsEnabled="{Binding CanApplySelection}">
+            <Grid ColumnDefinitions="14,*,72" ColumnSpacing="10">
+              <Grid Width="9" Height="9" VerticalAlignment="Center">
+                <Ellipse Fill="{DynamicResource CardBorderBrush}" />
+                <Ellipse Fill="{DynamicResource AccentBrush}"
+                         IsVisible="{Binding IsSelected}" />
+              </Grid>
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Text="{Binding Name}" FontSize="14"
+                           FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding TypeDisplay}" Classes="muted"
+                           FontSize="12" />
+              </StackPanel>
+              <Border Grid.Column="2" Classes="delay-badge"
+                      Classes.fast="{Binding HasFastDelay}"
+                      Classes.medium="{Binding HasMediumDelay}"
+                      Classes.slow="{Binding HasSlowDelay}"
+                      VerticalAlignment="Center">
+                <TextBlock Text="{Binding DelayDisplay}" Classes="node-delay"
+                           Classes.fast="{Binding HasFastDelay}"
+                           Classes.medium="{Binding HasMediumDelay}"
+                           Classes.slow="{Binding HasSlowDelay}"
+                           HorizontalAlignment="Center" />
+              </Border>
+            </Grid>
+          </Button>
+          <Button Grid.Column="1" Classes="node-test"
+                  Content="{DynamicResource TestNode}"
+                  Command="{Binding TestCommand}"
+                  IsEnabled="{Binding !IsTesting}"
+                  ToolTip.Tip="{DynamicResource Latency}" />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
   <Grid RowDefinitions="Auto,18,136,14,*">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
       <TextBlock Text="{DynamicResource NavDashboard}" Classes="page-title"
@@ -196,52 +235,24 @@
           </Grid>
 
           <Grid Grid.Row="1">
-            <ListBox Classes="node-list" ItemsSource="{Binding VisibleNodes}"
+            <ListBox Classes="node-list" ItemsSource="{Binding VisibleNodeRows}"
                      Background="Transparent" BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <primitives:UniformGrid Columns="2" VerticalAlignment="Top" />
+                  <VirtualizingStackPanel />
                 </ItemsPanelTemplate>
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:ProxyNodeItemViewModel">
-                  <Border Classes="node-row" Classes.selected="{Binding IsSelected}">
-                    <Grid ColumnDefinitions="*,64">
-                      <Button Classes="node-select" Command="{Binding SelectCommand}"
-                              IsEnabled="{Binding CanApplySelection}">
-                        <Grid ColumnDefinitions="14,*,72" ColumnSpacing="10">
-                          <Grid Width="9" Height="9" VerticalAlignment="Center">
-                            <Ellipse Fill="{DynamicResource CardBorderBrush}" />
-                            <Ellipse Fill="{DynamicResource AccentBrush}"
-                                     IsVisible="{Binding IsSelected}" />
-                          </Grid>
-                          <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="{Binding Name}" FontSize="14"
-                                       FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding TypeDisplay}" Classes="muted"
-                                       FontSize="12" />
-                          </StackPanel>
-                          <Border Grid.Column="2" Classes="delay-badge"
-                                  Classes.fast="{Binding HasFastDelay}"
-                                  Classes.medium="{Binding HasMediumDelay}"
-                                  Classes.slow="{Binding HasSlowDelay}"
-                                  VerticalAlignment="Center">
-                            <TextBlock Text="{Binding DelayDisplay}" Classes="node-delay"
-                                       Classes.fast="{Binding HasFastDelay}"
-                                       Classes.medium="{Binding HasMediumDelay}"
-                                       Classes.slow="{Binding HasSlowDelay}"
-                                       HorizontalAlignment="Center" />
-                          </Border>
-                        </Grid>
-                      </Button>
-                      <Button Grid.Column="1" Classes="node-test"
-                              Content="{DynamicResource TestNode}"
-                              Command="{Binding TestCommand}"
-                              IsEnabled="{Binding !IsTesting}"
-                              ToolTip.Tip="{DynamicResource Latency}" />
-                    </Grid>
-                  </Border>
+                <DataTemplate x:DataType="vm:ProxyNodeRowViewModel">
+                  <Grid ColumnDefinitions="*,*">
+                    <ContentControl Content="{Binding First}"
+                                    ContentTemplate="{StaticResource ProxyNodeTemplate}"
+                                    HorizontalContentAlignment="Stretch" />
+                    <ContentControl Grid.Column="1" Content="{Binding Second}"
+                                    ContentTemplate="{StaticResource ProxyNodeTemplate}"
+                                    HorizontalContentAlignment="Stretch" />
+                  </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
