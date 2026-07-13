@@ -79,11 +79,19 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SwitchingFromTunServiceToLocalCoreDropsServiceLease()
+    public async Task SwitchingTunOffAndOnKeepsSingleServiceLease()
     {
         var paths = new AppPaths(directory.Path);
-        var serviceClient = new FakeCoreServiceClient();
-        core = new SingBoxService(paths, () => serviceClient, static () => false);
+        var serviceClients = new List<FakeCoreServiceClient>();
+        core = new SingBoxService(
+            paths,
+            () =>
+            {
+                var client = new FakeCoreServiceClient();
+                serviceClients.Add(client);
+                return client;
+            },
+            static () => false);
         if (!await core.InitializeIfInstalledAsync())
             return;
 
@@ -112,18 +120,27 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
             })));
 
         await core.StartAsync(tunPath, directory.Path);
+        var serviceClient = Assert.Single(serviceClients);
         Assert.Equal(directory.Path, serviceClient.WorkingDirectory);
         await core.StopAsync();
-        serviceClient.RaiseDisconnected();
+        serviceClient.RaiseLateDisconnected();
         Assert.Equal(CoreState.Stopped, core.State);
 
         await core.StartAsync(localPath, null);
         await Task.Delay(200);
-        serviceClient.RaiseDisconnected();
+        serviceClient.RaiseLateDisconnected();
 
-        Assert.True(serviceClient.Disposed);
+        Assert.False(serviceClient.Disposed);
+        Assert.Equal(2, serviceClient.StopCount);
         Assert.Equal(CoreState.Running, core.State);
         Assert.NotNull(core.ProcessId);
+        await core.StopAsync();
+
+        await core.StartAsync(tunPath, directory.Path);
+
+        Assert.Same(serviceClient, Assert.Single(serviceClients));
+        Assert.Equal(2, serviceClient.StartCount);
+        Assert.Equal(CoreState.Running, core.State);
         await core.StopAsync();
     }
 
@@ -161,12 +178,18 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
 
         public string? WorkingDirectory { get; private set; }
 
+        public int StartCount { get; private set; }
+
+        public int StopCount { get; private set; }
+
         public Task StartAsync(
             string executablePath,
             string configurationPath,
             string? workingDirectory,
             CancellationToken cancellationToken)
         {
+            ObjectDisposedException.ThrowIf(Disposed, this);
+            StartCount++;
             WorkingDirectory = workingDirectory;
             StateChanged?.Invoke(new CoreStateChangedEventArgs(
                 CoreState.Running,
@@ -177,6 +200,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            ObjectDisposedException.ThrowIf(Disposed, this);
+            StopCount++;
             StateChanged?.Invoke(new CoreStateChangedEventArgs(
                 CoreState.Stopped,
                 null,
@@ -190,7 +215,7 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
             return ValueTask.CompletedTask;
         }
 
-        public void RaiseDisconnected()
+        public void RaiseLateDisconnected()
         {
             Disconnected?.Invoke(CoreServiceErrorCodes.Disconnected);
         }

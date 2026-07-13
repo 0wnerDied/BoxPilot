@@ -345,6 +345,8 @@ public sealed class SingBoxConfigService(
         mixed["listen_port"] = settings.MixedPort;
         mixed["listen"] = settings.AllowLan ? "0.0.0.0" : "127.0.0.1";
         mixed["set_system_proxy"] = settings.EnableSystemProxy;
+        // TUN teardown can leave accepted macOS sockets lingering while the next core starts.
+        mixed["reuse_addr"] = true;
 
         var tunInbounds = inbounds
             .OfType<JsonObject>()

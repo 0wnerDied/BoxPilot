@@ -15,6 +15,7 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
     private CancellationTokenSource? logCancellation;
     private readonly Func<ICoreServiceClient> coreServiceFactory = () => new CoreServiceClient(paths);
     private readonly Func<bool> isElevated = ProcessPrivileges.IsElevated;
+    // The authenticated lease stays open across local runs to avoid daemon cleanup and reinstall races.
     private ICoreServiceClient? coreService;
     private string executablePath = string.Empty;
     private bool serviceCoreActive;
@@ -220,7 +221,9 @@ public sealed class SingBoxService(AppPaths paths) : IAsyncDisposable
                 }
             }
 
-            await ReleaseCoreServiceAsync().ConfigureAwait(false);
+            // Establish exclusive port ownership even if a late service event already cleared its active flag.
+            if (coreService is not null)
+                await coreService.StopAsync(operationCancellation).ConfigureAwait(false);
 
             var startInfo = CreateStartInfo(["run", "-c", Path.GetFullPath(configurationPath)]);
             startInfo.WorkingDirectory = ResolveWorkingDirectory(workingDirectory);

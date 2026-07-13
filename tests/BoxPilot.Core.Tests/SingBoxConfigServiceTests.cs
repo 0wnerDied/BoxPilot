@@ -85,6 +85,27 @@ public sealed class SingBoxConfigServiceTests : SingBoxTestBase
     }
 
     [Fact]
+    public void ApplyRuntimeOptionsEnablesAddressReuseForMixedInbound()
+    {
+        var sourceMixed = new JsonObject
+        {
+            ["type"] = "mixed",
+            ["tag"] = "mixed-in",
+            ["reuse_addr"] = false,
+        };
+        var configuration = new JsonObject
+        {
+            ["inbounds"] = new JsonArray(sourceMixed),
+        };
+
+        var result = Config.ApplyRuntimeOptions(configuration, new AppSettings());
+
+        var mixed = Assert.Single(result["inbounds"]!.AsArray().OfType<JsonObject>());
+        Assert.True(mixed["reuse_addr"]!.GetValue<bool>());
+        Assert.False(sourceMixed["reuse_addr"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public void ApplyRuntimeOptionsKeepsImportedTunWhenEnabled()
     {
         var importedTun = new JsonObject
