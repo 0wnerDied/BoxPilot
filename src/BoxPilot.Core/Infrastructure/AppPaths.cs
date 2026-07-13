@@ -12,8 +12,10 @@ public sealed class AppPaths
         ProfilesDirectory = Path.Combine(RootDirectory, "profiles");
         RuntimeDirectory = Path.Combine(RootDirectory, "runtime");
         CacheDirectory = Path.Combine(RootDirectory, "cache");
+        RuleSetsDirectory = Path.Combine(RootDirectory, "rule-sets");
         SettingsFile = Path.Combine(RootDirectory, "settings.json");
         ProfileIndexFile = Path.Combine(RootDirectory, "profiles.json");
+        CustomRoutingFile = Path.Combine(RootDirectory, "custom-routing.json");
     }
 
     public string RootDirectory { get; }
@@ -24,9 +26,13 @@ public sealed class AppPaths
 
     public string CacheDirectory { get; }
 
+    public string RuleSetsDirectory { get; }
+
     public string SettingsFile { get; }
 
     public string ProfileIndexFile { get; }
+
+    public string CustomRoutingFile { get; }
 
     public static AppPaths CreateDefault()
     {
@@ -46,6 +52,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(ProfilesDirectory);
         Directory.CreateDirectory(RuntimeDirectory);
         Directory.CreateDirectory(CacheDirectory);
+        Directory.CreateDirectory(RuleSetsDirectory);
     }
 
     public string GetProfileConfigPath(Profile profile)
@@ -57,5 +64,10 @@ public sealed class AppPaths
             throw new InvalidDataException("Profile configuration file name is invalid.");
 
         return Path.Combine(ProfilesDirectory, fileName);
+    }
+
+    public string GetRuleSetDirectory(Guid profileId)
+    {
+        return Path.Combine(RuleSetsDirectory, profileId.ToString("N"));
     }
 }

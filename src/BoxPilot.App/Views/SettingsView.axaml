@@ -61,6 +61,14 @@
             <Separator Margin="0,7" />
             <ToggleSwitch Content="{DynamicResource SystemProxy}"
                           IsChecked="{Binding EnableSystemProxy}" />
+            <ToggleSwitch Content="{DynamicResource AllowLan}"
+                          IsChecked="{Binding AllowLan}" />
+            <TextBlock Text="{DynamicResource AllowLanHint}" Classes="muted"
+                       FontSize="13" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource CustomDns}" Classes="muted"
+                       FontSize="13" Margin="0,5,0,0" />
+            <TextBox Text="{Binding CustomDnsServer}"
+                     PlaceholderText="{DynamicResource CustomDnsHint}" />
             <ToggleSwitch Content="{DynamicResource TunMode}" IsChecked="{Binding EnableTun}" />
             <Border Classes="soft-panel" Margin="0,7,0,0">
               <StackPanel Spacing="10">

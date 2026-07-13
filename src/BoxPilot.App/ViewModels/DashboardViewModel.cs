@@ -37,6 +37,12 @@ public partial class DashboardViewModel(
 
     public bool HasVisibleNodes => VisibleNodes.Count > 0;
 
+    public bool IsRuleMode => string.Equals(Session.Settings.RoutingMode, "Rule", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsGlobalMode => string.Equals(Session.Settings.RoutingMode, "Global", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsDirectMode => string.Equals(Session.Settings.RoutingMode, "Direct", StringComparison.OrdinalIgnoreCase);
+
     public string GroupCountDisplay => $"{ProxyGroups.Count}";
 
     public string NodeCountDisplay
@@ -58,6 +64,9 @@ public partial class DashboardViewModel(
 
     [RelayCommand]
     private Task RestartAsync() => Session.RestartCoreAsync();
+
+    [RelayCommand]
+    private Task SetRoutingModeAsync(string mode) => Session.SetRoutingModeAsync(mode);
 
     [RelayCommand]
     public async Task RefreshProxiesAsync()
@@ -286,6 +295,13 @@ public partial class DashboardViewModel(
         ProxyGroups.Clear();
         VisibleNodes.Clear();
         NotifyProxyCounts();
+    }
+
+    public void NotifyRoutingModeChanged()
+    {
+        OnPropertyChanged(nameof(IsRuleMode));
+        OnPropertyChanged(nameof(IsGlobalMode));
+        OnPropertyChanged(nameof(IsDirectMode));
     }
 
     private void NotifyProxyCounts()

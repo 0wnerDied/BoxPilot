@@ -31,6 +31,7 @@ internal static class JsonDefaults
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(AppSettings))]
 [JsonSerializable(typeof(ProfileIndex))]
+[JsonSerializable(typeof(CustomRoutingIndex))]
 [JsonSerializable(typeof(CoreServiceMessage))]
 [JsonSerializable(typeof(CoreServiceInstallRequest))]
 [JsonSerializable(typeof(CoreServiceConfiguration))]

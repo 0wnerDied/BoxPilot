@@ -21,7 +21,7 @@ public partial class MainViewModel : ViewModelBase
 
         dashboard = new DashboardViewModel(session, localization);
         profiles = new ProfilesViewModel(session);
-        configuration = new ConfigurationViewModel(session);
+        configuration = new ConfigurationViewModel(session, localization);
         logs = new LogsViewModel(session);
         tools = new ToolsViewModel(session, localization);
         settings = new SettingsViewModel(session, localization);
@@ -76,6 +76,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
+        if (eventArgs.PropertyName == nameof(AppSessionViewModel.Settings))
+            dashboard.NotifyRoutingModeChanged();
         if (eventArgs.PropertyName != nameof(AppSessionViewModel.IsCoreRunning))
             return;
 

@@ -16,11 +16,17 @@ public sealed record AppSettings
 
     public bool EnableSystemProxy { get; init; } = true;
 
+    public bool AllowLan { get; init; }
+
     public bool EnableTun { get; init; }
 
     public int MixedPort { get; init; } = 2080;
 
     public int ClashApiPort { get; init; } = 9090;
+
+    public string CustomDnsServer { get; init; } = string.Empty;
+
+    public string RoutingMode { get; init; } = "Rule";
 
     public string ClashApiSecret { get; init; } = string.Empty;
 

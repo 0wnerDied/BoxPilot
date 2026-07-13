@@ -18,6 +18,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private readonly SingBoxService singBox;
     private readonly SingBoxConfigService configService;
     private readonly ProfileImportService profileImporter;
+    private readonly CustomRoutingService customRoutingService;
     private readonly LocalizationService localization;
     private readonly ConcurrentQueue<CoreLogEntry> pendingLogs = new();
     private readonly ConfigurationDraftStore configurationDrafts = new();
@@ -38,6 +39,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SingBoxService singBox,
         SingBoxConfigService configService,
         ProfileImportService profileImporter,
+        CustomRoutingService customRoutingService,
         LocalizationService localization)
     {
         this.paths = paths;
@@ -46,6 +48,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         this.singBox = singBox;
         this.configService = configService;
         this.profileImporter = profileImporter;
+        this.customRoutingService = customRoutingService;
         this.localization = localization;
 
         singBox.LogReceived += OnLogReceived;
@@ -58,6 +61,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public ObservableCollection<Profile> Profiles { get; } = [];
 
     public ObservableCollection<CoreLogEntry> Logs { get; } = [];
+
+    public ObservableCollection<CustomRuleSet> CustomRuleSets { get; } = [];
+
+    public ObservableCollection<RoutingOutbound> RoutingOutbounds { get; } = [];
 
     public ToastViewModel Toast { get; } = new();
 
@@ -98,6 +105,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                                           && !IsConfigurationDirty
                                           && SelectedProfile?.Source == ProfileSource.Subscription
                                           && !string.IsNullOrWhiteSpace(SelectedProfile.SubscriptionUrl);
+
+    public bool CanManageRuleSets => !IsBusy
+                                     && !IsConfigurationDirty
+                                     && SelectedProfile is not null;
 
     public string UploadRate => FormatRate(uploadBytesPerSecond);
 
@@ -181,6 +192,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         SetConfigurationText(
             selectedConfiguration.Configuration,
             selectedConfiguration.IsDirty);
+        await ReloadCustomRoutingAsync(profile, cancellationToken);
         Settings = Settings with { SelectedProfileId = profile.Id };
         await settingsStore.SaveAsync(Settings, cancellationToken);
     }
@@ -193,6 +205,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 ?? throw new InvalidOperationException(localization["NoProfile"]);
             await SaveAndValidateSelectedAsync(cancellationToken);
             await singBox.StartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
+            await ApplyRoutingModeToCoreAsync(cancellationToken);
             StartTrafficMonitor();
         });
     }
@@ -215,6 +228,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await SaveAndValidateSelectedAsync(cancellationToken);
             StopTrafficMonitor();
             await singBox.RestartAsync(paths.GetProfileConfigPath(profile), cancellationToken);
+            await ApplyRoutingModeToCoreAsync(cancellationToken);
             StartTrafficMonitor();
         });
     }
@@ -340,6 +354,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 await singBox.StopAsync(cancellationToken);
 
             await profileRepository.DeleteAsync(profile.Id, cancellationToken);
+            await customRoutingService.DeleteProfileAsync(profile.Id, cancellationToken);
             configurationDrafts.Remove(profile.Id);
             await ReloadProfilesAsync(cancellationToken);
             if (Profiles.Count == 0)
@@ -359,6 +374,20 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return RunBusyAsync(async () =>
         {
             var restart = IsCoreRunning;
+            string? updatedConfiguration = null;
+            if (SelectedProfile is { } selectedProfile
+                && !string.IsNullOrWhiteSpace(ConfigurationText))
+            {
+                var parsed = configService.Parse(ConfigurationText);
+                updatedConfiguration = await customRoutingService.ApplyAsync(
+                    selectedProfile.Id,
+                    configService.Serialize(configService.ApplyRuntimeOptions(parsed, updated)),
+                    cancellationToken);
+                var validation = await configService.ValidateAsync(updatedConfiguration, cancellationToken);
+                if (!validation.IsSuccess)
+                    throw new InvalidDataException(validation.CombinedOutput);
+            }
+
             if (restart)
                 await singBox.StopAsync(cancellationToken);
 
@@ -367,11 +396,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             localization.Apply(Settings.Language);
             await settingsStore.SaveAsync(Settings, cancellationToken);
 
-            if (SelectedProfile is not null && !string.IsNullOrWhiteSpace(ConfigurationText))
+            if (SelectedProfile is not null && updatedConfiguration is not null)
             {
-                var parsed = configService.Parse(ConfigurationText);
-                var updatedConfiguration = configService.Serialize(
-                    configService.ApplyRuntimeOptions(parsed, Settings));
                 await profileRepository.WriteConfigurationAsync(
                     SelectedProfile,
                     updatedConfiguration,
@@ -383,9 +409,149 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             var version = await singBox.InitializeAsync(Settings.SingBoxPath, cancellationToken);
             CoreVersion = version;
             if (restart && SelectedProfile is not null)
+            {
                 await singBox.StartAsync(paths.GetProfileConfigPath(SelectedProfile), cancellationToken);
+                await ApplyRoutingModeToCoreAsync(cancellationToken);
+            }
 
             Toast.Show(localization["SettingsSaved"], ToastLevel.Success);
+        });
+    }
+
+    public Task ImportRuleSetAsync(
+        string path,
+        string outbound,
+        CancellationToken cancellationToken = default)
+    {
+        return RunBusyAsync(async () =>
+        {
+            var profile = SelectedProfile
+                ?? throw new InvalidOperationException(localization["NoProfile"]);
+            if (IsConfigurationDirty)
+                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
+
+            var restart = IsCoreRunning;
+            var change = await customRoutingService.ImportAsync(
+                profile,
+                path,
+                outbound,
+                ConfigurationText,
+                cancellationToken);
+            await profileRepository.WriteConfigurationAsync(
+                profile,
+                change.Configuration,
+                cancellationToken);
+            SetConfigurationText(change.Configuration, false);
+            configurationDrafts.MarkSaved(profile.Id);
+            await ReloadCustomRoutingAsync(profile, cancellationToken);
+            if (restart)
+                await RestartCoreForProfileAsync(profile, cancellationToken);
+            Toast.Show(localization["RuleSetImported"], ToastLevel.Success);
+        });
+    }
+
+    public Task RemoveRuleSetAsync(
+        CustomRuleSet ruleSet,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ruleSet);
+        return RunBusyAsync(async () =>
+        {
+            var profile = SelectedProfile
+                ?? throw new InvalidOperationException(localization["NoProfile"]);
+            if (IsConfigurationDirty)
+                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
+
+            var restart = IsCoreRunning;
+            var configuration = await customRoutingService.RemoveAsync(
+                profile,
+                ruleSet.Id,
+                ConfigurationText,
+                cancellationToken);
+            await profileRepository.WriteConfigurationAsync(profile, configuration, cancellationToken);
+            SetConfigurationText(configuration, false);
+            configurationDrafts.MarkSaved(profile.Id);
+            await ReloadCustomRoutingAsync(profile, cancellationToken);
+            if (restart)
+                await RestartCoreForProfileAsync(profile, cancellationToken);
+            Toast.Show(localization["RuleSetRemoved"], ToastLevel.Success);
+        });
+    }
+
+    public Task AddRemoteRuleSetAsync(
+        string url,
+        string outbound,
+        CancellationToken cancellationToken = default)
+    {
+        return RunBusyAsync(async () =>
+        {
+            var profile = SelectedProfile
+                ?? throw new InvalidOperationException(localization["NoProfile"]);
+            if (IsConfigurationDirty)
+                throw new InvalidOperationException(localization["SaveChangesBeforeRuleSet"]);
+
+            var restart = IsCoreRunning;
+            var change = await customRoutingService.AddRemoteAsync(
+                profile,
+                url,
+                outbound,
+                ConfigurationText,
+                cancellationToken);
+            await profileRepository.WriteConfigurationAsync(
+                profile,
+                change.Configuration,
+                cancellationToken);
+            SetConfigurationText(change.Configuration, false);
+            configurationDrafts.MarkSaved(profile.Id);
+            await ReloadCustomRoutingAsync(profile, cancellationToken);
+            if (restart)
+                await RestartCoreForProfileAsync(profile, cancellationToken);
+            Toast.Show(localization["RuleSetImported"], ToastLevel.Success);
+        });
+    }
+
+    public Task SetRoutingModeAsync(
+        string mode,
+        CancellationToken cancellationToken = default)
+    {
+        return RunBusyAsync(async () =>
+        {
+            var normalized = mode?.ToLowerInvariant() switch
+            {
+                "global" => "Global",
+                "direct" => "Direct",
+                _ => "Rule",
+            };
+            var updatedSettings = Settings with { RoutingMode = normalized };
+
+            if (SelectedProfile is { } profile && !string.IsNullOrWhiteSpace(ConfigurationText))
+            {
+                var parsed = configService.Parse(ConfigurationText);
+                var updatedConfiguration = await customRoutingService.ApplyAsync(
+                    profile.Id,
+                    configService.Serialize(configService.ApplyRuntimeOptions(parsed, updatedSettings)),
+                    cancellationToken);
+                var validation = await configService.ValidateAsync(updatedConfiguration, cancellationToken);
+                if (!validation.IsSuccess)
+                    throw new InvalidDataException(validation.CombinedOutput);
+                await profileRepository.WriteConfigurationAsync(
+                    profile,
+                    updatedConfiguration,
+                    cancellationToken);
+                SetConfigurationText(updatedConfiguration, false);
+                configurationDrafts.MarkSaved(profile.Id);
+            }
+
+            Settings = updatedSettings;
+            await settingsStore.SaveAsync(Settings, cancellationToken);
+
+            if (IsCoreRunning)
+            {
+                using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
+                await client.SetModeAsync(normalized, cancellationToken);
+            }
+
+            Toast.Show(localization["RoutingModeChanged"], ToastLevel.Success);
         });
     }
 
@@ -479,6 +645,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     partial void OnIsConfigurationDirtyChanged(bool value)
     {
         OnPropertyChanged(nameof(CanRefreshSubscription));
+        OnPropertyChanged(nameof(CanManageRuleSets));
     }
 
     partial void OnCoreStateChanged(CoreState value)
@@ -498,6 +665,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanModifyProfiles));
         OnPropertyChanged(nameof(CanDeleteProfile));
         OnPropertyChanged(nameof(CanRefreshSubscription));
+        OnPropertyChanged(nameof(CanManageRuleSets));
     }
 
     private async Task SaveAndValidateSelectedAsync(CancellationToken cancellationToken)
@@ -505,8 +673,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         var profile = SelectedProfile
             ?? throw new InvalidOperationException(localization["NoProfile"]);
         var parsed = configService.Parse(ConfigurationText);
-        var formatted = configService.Serialize(
-            configService.ApplyRuntimeOptions(parsed, Settings));
+        var formatted = await customRoutingService.ApplyAsync(
+            profile.Id,
+            configService.Serialize(configService.ApplyRuntimeOptions(parsed, Settings)),
+            cancellationToken);
         var validation = await configService.ValidateAsync(formatted, cancellationToken);
         if (!validation.IsSuccess)
             throw new InvalidDataException(validation.CombinedOutput);
@@ -561,7 +731,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         if (profile.Source != ProfileSource.Subscription)
-            return configuration;
+            return await customRoutingService.ApplyAsync(
+                profile.Id,
+                configuration,
+                cancellationToken);
 
         var shouldPrepare = !string.Equals(
             profile.SubscriptionFormat,
@@ -585,7 +758,10 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         parsed = configService.ApplyRuntimeOptions(parsed, Settings);
 
         // Subscription profiles are app-owned; manual profile formatting remains untouched.
-        var normalized = configService.Serialize(parsed);
+        var normalized = await customRoutingService.ApplyAsync(
+            profile.Id,
+            configService.Serialize(parsed),
+            cancellationToken);
         if (!string.Equals(normalized, configuration, StringComparison.Ordinal))
         {
             await profileRepository.WriteConfigurationAsync(
@@ -595,6 +771,21 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         }
 
         return normalized;
+    }
+
+    private async Task ReloadCustomRoutingAsync(
+        Profile profile,
+        CancellationToken cancellationToken)
+    {
+        var ruleSets = await customRoutingService.GetAsync(profile.Id, cancellationToken);
+        CustomRuleSets.Clear();
+        foreach (var ruleSet in ruleSets)
+            CustomRuleSets.Add(ruleSet);
+
+        RoutingOutbounds.Clear();
+        foreach (var outbound in customRoutingService.GetRoutingOutbounds(ConfigurationText))
+            RoutingOutbounds.Add(outbound);
+        OnPropertyChanged(nameof(CanManageRuleSets));
     }
 
     private async Task RunBusyAsync(Func<Task> operation)
@@ -614,7 +805,25 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         await singBox.RestartAsync(
             paths.GetProfileConfigPath(profile),
             cancellationToken);
+        await ApplyRoutingModeToCoreAsync(cancellationToken);
         StartTrafficMonitor();
+    }
+
+    private async Task ApplyRoutingModeToCoreAsync(CancellationToken cancellationToken)
+    {
+        using var client = new ClashApiClient(Settings.ClashApiPort, Settings.ClashApiSecret);
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await client.SetModeAsync(Settings.RoutingMode, cancellationToken);
+                return;
+            }
+            catch (HttpRequestException) when (attempt < 5)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+            }
+        }
     }
 
     private async Task<T?> RunBusyWithResultAsync<T>(Func<Task<T>> operation)

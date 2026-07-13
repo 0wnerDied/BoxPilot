@@ -1,10 +1,11 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:BoxPilot.App.Controls"
+             xmlns:models="using:BoxPilot.Core.Models"
              xmlns:vm="using:BoxPilot.App.ViewModels"
              x:Class="BoxPilot.App.Views.ConfigurationView"
              x:DataType="vm:ConfigurationViewModel">
-  <Grid RowDefinitions="Auto,24,Auto,10,*">
+  <Grid RowDefinitions="Auto,18,Auto,12,Auto,10,*">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="24">
       <StackPanel>
         <TextBlock Text="{DynamicResource ConfigurationTitle}" Classes="page-title" />
@@ -20,7 +21,68 @@
       </StackPanel>
     </Grid>
 
-    <Border Grid.Row="2" Classes="soft-panel" Padding="12,9">
+    <Border Grid.Row="2" Classes="panel" Padding="0">
+      <Grid RowDefinitions="Auto,1,Auto,1,Auto">
+        <Grid Margin="16,12" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+          <StackPanel Spacing="3">
+            <TextBlock Text="{DynamicResource CustomRouting}" Classes="section-title" />
+            <TextBlock Text="{DynamicResource CustomRoutingHint}" Classes="muted"
+                       FontSize="13" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding Session.CustomRuleSets.Count}"
+                     Classes="faint" VerticalAlignment="Center" />
+        </Grid>
+        <Border Grid.Row="1" Background="{DynamicResource CardBorderBrush}" />
+        <Grid Grid.Row="2" Margin="16,10" ColumnDefinitions="210,Auto,*,Auto"
+              ColumnSpacing="9">
+          <ComboBox ItemsSource="{Binding Session.RoutingOutbounds}"
+                    SelectedItem="{Binding SelectedRoutingOutbound}"
+                    PlaceholderText="{DynamicResource RouteTarget}"
+                    IsEnabled="{Binding Session.CanManageRuleSets}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="models:RoutingOutbound">
+                <TextBlock Text="{Binding Tag}" TextTrimming="CharacterEllipsis" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Grid.Column="1" Classes="ghost"
+                  Content="{DynamicResource ImportLocalRuleSet}"
+                  Click="ImportRuleSetClicked"
+                  IsEnabled="{Binding Session.CanManageRuleSets}" />
+          <TextBox Grid.Column="2" Text="{Binding RemoteRuleSetUrl}"
+                   PlaceholderText="{DynamicResource RemoteRuleSetUrl}"
+                   IsEnabled="{Binding Session.CanManageRuleSets}" />
+          <Button Grid.Column="3" Classes="primary"
+                  Content="{DynamicResource AddRemoteRuleSet}"
+                  Command="{Binding AddRemoteRuleSetCommand}"
+                  IsEnabled="{Binding Session.CanManageRuleSets}" />
+        </Grid>
+        <Border Grid.Row="3" Background="{DynamicResource CardBorderBrush}" />
+        <ScrollViewer Grid.Row="4" MaxHeight="104"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Session.CustomRuleSets}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="models:CustomRuleSet">
+                <Grid Margin="16,8" ColumnDefinitions="*,180,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Format}" Classes="muted" FontSize="13" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding Outbound}" Classes="muted"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <Button Grid.Column="2" Classes="danger" Content="{DynamicResource Delete}"
+                          Click="RemoveRuleSetClicked" Padding="11,7" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="4" Classes="soft-panel" Padding="12,9">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="{Binding Session.SelectedProfile.Name, FallbackValue=—}"
@@ -43,7 +105,7 @@
       </Grid>
     </Border>
 
-    <controls:CodeEditor Grid.Row="4" Language="Json"
+    <controls:CodeEditor Grid.Row="6" Language="Json"
                          Value="{Binding Session.ConfigurationText, Mode=TwoWay}"
                          ShowLineNumbers="True" WordWrap="False"
                          Placeholder="{DynamicResource JsonPlaceholder}"

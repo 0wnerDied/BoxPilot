@@ -4,10 +4,24 @@
              x:Class="BoxPilot.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
   <Grid RowDefinitions="Auto,24,210,16,*">
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="24">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="20">
       <TextBlock Text="{DynamicResource NavDashboard}" Classes="page-title"
                  VerticalAlignment="Bottom" />
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9"
+      <Border Grid.Column="1" Classes="soft-panel" Padding="5,3"
+              VerticalAlignment="Bottom" Margin="0,0,0,2">
+        <StackPanel Orientation="Horizontal" Spacing="3">
+          <RadioButton GroupName="RoutingMode" Content="{DynamicResource RuleMode}"
+                       IsChecked="{Binding IsRuleMode, Mode=OneWay}"
+                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Rule" />
+          <RadioButton GroupName="RoutingMode" Content="{DynamicResource GlobalMode}"
+                       IsChecked="{Binding IsGlobalMode, Mode=OneWay}"
+                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Global" />
+          <RadioButton GroupName="RoutingMode" Content="{DynamicResource DirectMode}"
+                       IsChecked="{Binding IsDirectMode, Mode=OneWay}"
+                       Command="{Binding SetRoutingModeCommand}" CommandParameter="Direct" />
+        </StackPanel>
+      </Border>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="9"
                   VerticalAlignment="Bottom" Margin="0,0,0,2">
         <Button Classes="ghost" Content="{DynamicResource Restart}"
                 Command="{Binding RestartCommand}" IsEnabled="{Binding Session.CanStopCore}"

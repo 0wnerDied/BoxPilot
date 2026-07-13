@@ -46,6 +46,12 @@ public partial class SettingsViewModel : ViewModelBase
     public partial bool EnableSystemProxy { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool AllowLan { get; set; }
+
+    [ObservableProperty]
+    public partial string CustomDnsServer { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial bool EnableTun { get; set; }
 
     [ObservableProperty]
@@ -65,6 +71,8 @@ public partial class SettingsViewModel : ViewModelBase
             MixedPort = Math.Clamp(MixedPort, 1, 65_535),
             ClashApiPort = Math.Clamp(ApiPort, 1, 65_535),
             EnableSystemProxy = EnableSystemProxy,
+            AllowLan = AllowLan,
+            CustomDnsServer = CustomDnsServer.Trim(),
             EnableTun = EnableTun,
             StartCoreOnLaunch = StartCoreOnLaunch,
             CloseToTray = CloseToTray,
@@ -87,6 +95,8 @@ public partial class SettingsViewModel : ViewModelBase
         MixedPort = settings.MixedPort;
         ApiPort = settings.ClashApiPort;
         EnableSystemProxy = settings.EnableSystemProxy;
+        AllowLan = settings.AllowLan;
+        CustomDnsServer = settings.CustomDnsServer;
         EnableTun = settings.EnableTun;
         StartCoreOnLaunch = settings.StartCoreOnLaunch;
         CloseToTray = settings.CloseToTray;

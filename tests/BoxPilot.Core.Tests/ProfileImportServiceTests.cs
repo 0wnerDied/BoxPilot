@@ -35,6 +35,7 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
     private readonly SingBoxService core;
     private readonly SingBoxConfigService config;
     private readonly ProfileRepository repository;
+    private readonly CustomRoutingService customRouting;
 
     public ProfileImportServiceTests()
     {
@@ -42,6 +43,7 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         core = new SingBoxService(paths);
         config = new SingBoxConfigService(paths, core);
         repository = new ProfileRepository(paths);
+        customRouting = new CustomRoutingService(paths, config);
     }
 
     [Fact]
@@ -144,6 +146,34 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         Assert.Single(handler.Requests);
     }
 
+    [Fact]
+    public async Task UpdateSubscriptionReappliesPersistentCustomRuleSets()
+    {
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+            TextResponse(ClashSubscription, "application/yaml")));
+        using var subscriptionClient = new SubscriptionClient(httpClient);
+        var service = CreateService(subscriptionClient);
+        var imported = await service.ImportSubscriptionAsync(
+            "Provider",
+            new Uri("https://example.test/sub/clash"),
+            new AppSettings());
+        var sourcePath = Path.Combine(directory.Path, "private.json");
+        await File.WriteAllTextAsync(sourcePath, """{ "version": 3, "rules": [] }""");
+        var configuration = await repository.ReadConfigurationAsync(imported.Profile);
+        var change = await customRouting.ImportAsync(
+            imported.Profile,
+            sourcePath,
+            "Source group",
+            configuration);
+        await repository.WriteConfigurationAsync(imported.Profile, change.Configuration);
+
+        var updated = await service.UpdateSubscriptionAsync(imported.Profile, new AppSettings());
+        var updatedConfiguration = await repository.ReadConfigurationAsync(updated.Profile);
+
+        Assert.Contains(change.RuleSet.Tag, updatedConfiguration);
+        Assert.Contains("Source group", updatedConfiguration);
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()
@@ -158,7 +188,8 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
             subscriptionClient,
             new SubscriptionParser(config),
             config,
-            repository);
+            repository,
+            customRouting);
     }
 
     private static HttpResponseMessage TextResponse(string content, string mediaType)

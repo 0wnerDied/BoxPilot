@@ -10,7 +10,8 @@ public sealed class ProfileImportService(
     SubscriptionClient subscriptionClient,
     SubscriptionParser subscriptionParser,
     SingBoxConfigService configService,
-    ProfileRepository profileRepository)
+    ProfileRepository profileRepository,
+    CustomRoutingService customRoutingService)
 {
     private static readonly HashSet<string> ExplicitFormatSegments = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -107,6 +108,11 @@ public sealed class ProfileImportService(
         await ValidateSubscriptionAsync(
                 configuration,
                 "The updated subscription is not accepted by sing-box:",
+                cancellationToken)
+            .ConfigureAwait(false);
+        configuration = await customRoutingService.ApplyAsync(
+                profile.Id,
+                configuration,
                 cancellationToken)
             .ConfigureAwait(false);
 

@@ -192,6 +192,87 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
         Assert.Equal("subscription-test", prepared["experimental"]?["cache_file"]?["cache_id"]?.ToString());
     }
 
+    [Fact]
+    public void ApplyRuntimeOptionsAddsModesCustomDnsAndLanListener()
+    {
+        var configuration = new JsonObject
+        {
+            ["outbounds"] = new JsonArray(
+                new JsonObject
+                {
+                    ["type"] = "selector",
+                    ["tag"] = "Proxy",
+                    ["outbounds"] = new JsonArray("Edge"),
+                },
+                new JsonObject { ["type"] = "vless", ["tag"] = "Edge" },
+                new JsonObject { ["type"] = "direct", ["tag"] = "direct" }),
+            ["route"] = new JsonObject
+            {
+                ["rules"] = new JsonArray(
+                    new JsonObject { ["action"] = "sniff" },
+                    new JsonObject { ["domain_suffix"] = new JsonArray("example.test"), ["outbound"] = "direct" }),
+                ["final"] = "Proxy",
+            },
+        };
+
+        var result = service.ApplyRuntimeOptions(configuration, new AppSettings
+        {
+            AllowLan = true,
+            CustomDnsServer = "https://1.1.1.1/dns-query",
+            RoutingMode = "Global",
+        });
+
+        var mixed = result["inbounds"]!.AsArray().OfType<JsonObject>()
+            .Single(inbound => inbound["type"]?.ToString() == "mixed");
+        Assert.Equal("0.0.0.0", mixed["listen"]?.ToString());
+        Assert.Equal("global", result["experimental"]?["clash_api"]?["default_mode"]?.ToString());
+        var rules = result["route"]!["rules"]!.AsArray();
+        Assert.Equal("sniff", rules[0]?["action"]?.ToString());
+        Assert.Equal("direct", rules[1]?["clash_mode"]?.ToString());
+        Assert.Equal("direct", rules[1]?["outbound"]?.ToString());
+        Assert.Equal("global", rules[2]?["clash_mode"]?.ToString());
+        Assert.Equal("Proxy", rules[2]?["outbound"]?.ToString());
+        Assert.Equal("https", result["dns"]?["servers"]?[0]?["type"]?.ToString());
+        Assert.Equal("/dns-query", result["dns"]?["servers"]?[0]?["path"]?.ToString());
+    }
+
+    [Fact]
+    public void ApplyRuntimeOptionsPreservesProviderModeRules()
+    {
+        var configuration = new JsonObject
+        {
+            ["outbounds"] = new JsonArray(
+                new JsonObject { ["type"] = "selector", ["tag"] = "Provider global" },
+                new JsonObject { ["type"] = "selector", ["tag"] = "Provider default" },
+                new JsonObject { ["type"] = "direct", ["tag"] = "provider-direct" }),
+            ["route"] = new JsonObject
+            {
+                ["rules"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["clash_mode"] = "global",
+                        ["action"] = "route",
+                        ["outbound"] = "Provider global",
+                    },
+                    new JsonObject
+                    {
+                        ["clash_mode"] = "direct",
+                        ["action"] = "route",
+                        ["outbound"] = "provider-direct",
+                    }),
+                ["final"] = "Provider default",
+            },
+        };
+
+        var result = service.ApplyRuntimeOptions(configuration, new AppSettings());
+        result = service.ApplyRuntimeOptions(result, new AppSettings());
+        var rules = result["route"]!["rules"]!.AsArray();
+
+        Assert.Equal(2, rules.Count);
+        Assert.Equal("Provider global", rules[0]?["outbound"]?.ToString());
+        Assert.Equal("provider-direct", rules[1]?["outbound"]?.ToString());
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

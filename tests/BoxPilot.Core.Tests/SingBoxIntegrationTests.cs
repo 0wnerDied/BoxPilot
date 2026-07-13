@@ -35,6 +35,8 @@ public sealed class SingBoxIntegrationTests : IAsyncLifetime
             EnableSystemProxy = false,
             ClashApiPort = 19_091,
             ClashApiSecret = "integration-test",
+            AllowLan = true,
+            CustomDnsServer = "https://1.1.1.1/dns-query",
         };
         var configuration = configService.Serialize(configService.CreateStarterConfiguration(settings));
 

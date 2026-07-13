@@ -17,13 +17,15 @@ public sealed class AppRuntime : IAsyncDisposable
         var profileRepository = new ProfileRepository(paths);
         singBox = new SingBoxService(paths);
         var config = new SingBoxConfigService(paths, singBox);
+        var customRouting = new CustomRoutingService(paths, config);
         subscriptionClient = new SubscriptionClient();
         var subscriptionParser = new SubscriptionParser(config);
         var profileImporter = new ProfileImportService(
             subscriptionClient,
             subscriptionParser,
             config,
-            profileRepository);
+            profileRepository,
+            customRouting);
         Localization = new LocalizationService();
         Session = new AppSessionViewModel(
             paths,
@@ -32,6 +34,7 @@ public sealed class AppRuntime : IAsyncDisposable
             singBox,
             config,
             profileImporter,
+            customRouting,
             Localization);
     }
 

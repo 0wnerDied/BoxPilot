@@ -84,6 +84,25 @@ public sealed class ClashApiClient : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task SetModeAsync(
+        string mode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = mode?.ToLowerInvariant() switch
+        {
+            "global" => "global",
+            "direct" => "direct",
+            _ => "rule",
+        };
+        using var request = CreateRequest(HttpMethod.Patch, "configs");
+        request.Content = new StringContent(
+            new JsonObject { ["mode"] = normalized }.ToJsonString(JsonDefaults.SerializerOptions),
+            Encoding.UTF8,
+            "application/json");
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<int?> TestDelayAsync(
         string proxy,
         string testUrl = "https://www.gstatic.com/generate_204",

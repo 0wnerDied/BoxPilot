@@ -89,4 +89,26 @@ public sealed class ClashApiClientTests
         Assert.DoesNotContain("\\u", requestBody, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Bearer test-secret", authorization);
     }
+
+    [Fact]
+    public async Task SetModePatchesNormalizedClashMode()
+    {
+        HttpMethod? method = null;
+        string? path = null;
+        string? requestBody = null;
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(async request =>
+        {
+            method = request.Method;
+            path = request.RequestUri?.AbsolutePath;
+            requestBody = await request.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }));
+        using var client = new ClashApiClient(9090, string.Empty, httpClient);
+
+        await client.SetModeAsync("Direct");
+
+        Assert.Equal(HttpMethod.Patch, method);
+        Assert.Equal("/configs", path);
+        Assert.Equal("direct", JsonNode.Parse(requestBody!)?["mode"]?.ToString());
+    }
 }
