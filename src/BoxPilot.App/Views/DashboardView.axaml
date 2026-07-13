@@ -99,7 +99,8 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="4" Classes="panel" Padding="0">
+    <Border Grid.Row="4" Classes="panel" Padding="0"
+            IsVisible="{Binding ShowProxySelection}">
       <Grid ColumnDefinitions="236,1,*">
         <Grid RowDefinitions="64,1,*">
           <Grid Margin="18,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
@@ -117,7 +118,7 @@
                 <DataTemplate x:DataType="vm:ProxyGroupItemViewModel">
                   <Grid Margin="11,7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="3">
-                      <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                      <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"
                                  TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding SelectionDisplay}" Classes="muted" FontSize="13"
                                  TextTrimming="CharacterEllipsis" />
@@ -141,7 +142,7 @@
           <Grid Margin="18,12" RowDefinitions="Auto,8,Auto">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="9">
               <StackPanel Spacing="2">
-                <TextBlock Text="{Binding SelectedGroup.Name, FallbackValue=—}"
+                <TextBlock Text="{Binding SelectedGroup.DisplayName, FallbackValue=—}"
                            Classes="section-title" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding SelectedGroup.SelectionDisplay, FallbackValue=—}"
                            Classes="muted" FontSize="13" TextTrimming="CharacterEllipsis" />

@@ -17,6 +17,7 @@ public partial class DashboardViewModel(
     private bool isRefreshingProxies;
     private bool isTestingGroup;
     private bool isSwitchingNode;
+    private IReadOnlyList<ProxyChoice> allProxyChoices = [];
 
     public AppSessionViewModel Session { get; } = session;
 
@@ -43,6 +44,8 @@ public partial class DashboardViewModel(
 
     public bool IsDirectMode => string.Equals(Session.Settings.RoutingMode, "Direct", StringComparison.OrdinalIgnoreCase);
 
+    public bool ShowProxySelection => !IsDirectMode;
+
     public string GroupCountDisplay => $"{ProxyGroups.Count}";
 
     public string NodeCountDisplay
@@ -66,7 +69,12 @@ public partial class DashboardViewModel(
     private Task RestartAsync() => Session.RestartCoreAsync();
 
     [RelayCommand]
-    private Task SetRoutingModeAsync(string mode) => Session.SetRoutingModeAsync(mode);
+    private async Task SetRoutingModeAsync(string mode)
+    {
+        await Session.SetRoutingModeAsync(mode);
+        if (Session.IsCoreRunning && ShowProxySelection && allProxyChoices.Count == 0)
+            await RefreshProxiesAsync();
+    }
 
     [RelayCommand]
     public async Task RefreshProxiesAsync()
@@ -80,22 +88,8 @@ public partial class DashboardViewModel(
         {
             using var client = CreateApiClient();
             var choices = await LoadProxyChoicesAsync(client);
-            ProxyGroups.Clear();
-            foreach (var choice in choices)
-            {
-                ProxyGroups.Add(new ProxyGroupItemViewModel(
-                    choice,
-                    localization,
-                    SelectNodeAsync,
-                    TestNodeAsync));
-            }
-
-            SelectedGroup = ProxyGroups.FirstOrDefault(group => string.Equals(
-                                group.Name,
-                                previousGroup,
-                                StringComparison.Ordinal))
-                            ?? ProxyGroups.FirstOrDefault();
-            NotifyProxyCounts();
+            allProxyChoices = choices;
+            RebuildProxyGroups(previousGroup);
         }
         catch (Exception exception)
         {
@@ -199,6 +193,11 @@ public partial class DashboardViewModel(
             using var client = CreateApiClient();
             await client.SelectProxyAsync(group.Name, node.Name);
             group.Select(node.Name);
+            allProxyChoices = allProxyChoices
+                .Select(choice => string.Equals(choice.Group, group.Name, StringComparison.Ordinal)
+                    ? choice with { Selected = node.Name }
+                    : choice)
+                .ToArray();
             Session.Toast.Show(
                 $"{localization["NodeSelected"]}: {node.Name}",
                 ToastLevel.Success);
@@ -289,6 +288,7 @@ public partial class DashboardViewModel(
 
     public void ClearProxies()
     {
+        allProxyChoices = [];
         SelectedGroup = null;
         ProxyGroups.Clear();
         VisibleNodes.Clear();
@@ -300,6 +300,48 @@ public partial class DashboardViewModel(
         OnPropertyChanged(nameof(IsRuleMode));
         OnPropertyChanged(nameof(IsGlobalMode));
         OnPropertyChanged(nameof(IsDirectMode));
+        OnPropertyChanged(nameof(ShowProxySelection));
+        RebuildProxyGroups(SelectedGroup?.Name);
+    }
+
+    private void RebuildProxyGroups(string? previousGroup)
+    {
+        IEnumerable<ProxyChoice> choices = allProxyChoices;
+        if (IsDirectMode)
+        {
+            choices = [];
+        }
+        else if (IsGlobalMode)
+        {
+            choices = string.IsNullOrWhiteSpace(Session.GlobalProxyGroup)
+                ? []
+                : choices.Where(choice => string.Equals(
+                    choice.Group,
+                    Session.GlobalProxyGroup,
+                    StringComparison.Ordinal));
+        }
+        else
+        {
+            choices = choices.Where(static choice =>
+                !SingBoxConfigService.IsManagedGlobalSelector(choice.Group));
+        }
+
+        ProxyGroups.Clear();
+        foreach (var choice in choices)
+        {
+            ProxyGroups.Add(new ProxyGroupItemViewModel(
+                choice,
+                localization,
+                SelectNodeAsync,
+                TestNodeAsync));
+        }
+
+        SelectedGroup = ProxyGroups.FirstOrDefault(group => string.Equals(
+                            group.Name,
+                            previousGroup,
+                            StringComparison.Ordinal))
+                        ?? ProxyGroups.FirstOrDefault();
+        NotifyProxyCounts();
     }
 
     private void NotifyProxyCounts()

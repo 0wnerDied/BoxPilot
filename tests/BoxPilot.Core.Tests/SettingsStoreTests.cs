@@ -19,6 +19,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(first.ClashApiSecret, second.ClashApiSecret);
         Assert.Equal("zh-CN", first.Language);
         Assert.Equal("Light", first.Theme);
+        Assert.Equal("Rule", first.RoutingMode);
     }
 
     public void Dispose()

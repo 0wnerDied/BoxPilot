@@ -240,11 +240,16 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
         Assert.Equal("direct", rules[1]?["clash_mode"]?.ToString());
         Assert.Equal("boxpilot-direct", rules[1]?["outbound"]?.ToString());
         Assert.Equal("global", rules[2]?["clash_mode"]?.ToString());
-        Assert.Equal("Proxy", rules[2]?["outbound"]?.ToString());
+        Assert.Equal(SingBoxConfigService.ManagedGlobalSelectorTag, rules[2]?["outbound"]?.ToString());
         Assert.Contains(
             result["outbounds"]!.AsArray().OfType<JsonObject>(),
             outbound => outbound["type"]?.ToString() == "direct"
                         && outbound["tag"]?.ToString() == "boxpilot-direct");
+        var global = result["outbounds"]!.AsArray().OfType<JsonObject>()
+            .Single(outbound => outbound["tag"]?.ToString() == SingBoxConfigService.ManagedGlobalSelectorTag);
+        Assert.Equal("selector", global["type"]?.ToString());
+        Assert.Equal(["Edge"], global["outbounds"]!.AsArray().Select(static item => item!.ToString()));
+        Assert.Equal("Edge", global["default"]?.ToString());
         Assert.DoesNotContain(
             configuration["outbounds"]!.AsArray().OfType<JsonObject>(),
             outbound => outbound["type"]?.ToString() == "direct");
@@ -252,6 +257,69 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
         Assert.Equal("/dns-query", result["dns"]?["servers"]?[0]?["path"]?.ToString());
         var validation = await service.ValidateAsync(service.Serialize(result));
         Assert.True(validation.IsSuccess, validation.CombinedOutput);
+    }
+
+    [Fact]
+    public void EnsureManagedStandardRoutingModesKeepsGlobalSelectionIndependent()
+    {
+        var configuration = new JsonObject
+        {
+            ["outbounds"] = new JsonArray(
+                new JsonObject
+                {
+                    ["type"] = "selector",
+                    ["tag"] = "Provider",
+                    ["outbounds"] = new JsonArray("Automatic", "Edge A", "Edge B"),
+                    ["default"] = "Edge A",
+                },
+                new JsonObject
+                {
+                    ["type"] = "urltest",
+                    ["tag"] = "Automatic",
+                    ["outbounds"] = new JsonArray("Edge A", "Edge B"),
+                },
+                new JsonObject { ["type"] = "socks", ["tag"] = "Edge A" },
+                new JsonObject { ["type"] = "socks", ["tag"] = "Edge B" },
+                new JsonObject { ["type"] = "direct", ["tag"] = "direct" }),
+            ["route"] = new JsonObject
+            {
+                ["rules"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["clash_mode"] = "global",
+                        ["action"] = "route",
+                        ["outbound"] = "Provider",
+                    },
+                    new JsonObject
+                    {
+                        ["clash_mode"] = "direct",
+                        ["action"] = "route",
+                        ["outbound"] = "direct",
+                    }),
+                ["final"] = "Provider",
+            },
+        };
+
+        var result = service.EnsureManagedStandardRoutingModes(configuration);
+        result = service.EnsureManagedStandardRoutingModes(result);
+
+        var outbounds = result["outbounds"]!.AsArray().OfType<JsonObject>().ToArray();
+        var managed = Assert.Single(outbounds, outbound =>
+            SingBoxConfigService.IsManagedGlobalSelector(outbound["tag"]?.ToString()));
+        Assert.Equal(
+            ["Automatic", "Edge A", "Edge B"],
+            managed["outbounds"]!.AsArray().Select(static item => item!.ToString()));
+        Assert.Equal("Edge A", managed["default"]?.ToString());
+        Assert.Equal(
+            SingBoxConfigService.ManagedGlobalSelectorTag,
+            result["route"]!["rules"]![0]!["outbound"]?.ToString());
+        Assert.Equal("Provider", result["route"]!["final"]?.ToString());
+        Assert.Equal(SingBoxConfigService.ManagedGlobalSelectorTag, service.GetGlobalProxyGroup(result));
+        Assert.Equal(
+            ["Automatic", "Edge A", "Edge B"],
+            outbounds.Single(outbound => outbound["tag"]?.ToString() == "Provider")["outbounds"]!
+                .AsArray()
+                .Select(static item => item!.ToString()));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using BoxPilot.App.Services;
 using BoxPilot.Core.Models;
+using BoxPilot.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -17,6 +18,9 @@ public sealed partial class ProxyGroupItemViewModel : ViewModelBase
         Func<ProxyNodeItemViewModel, Task> test)
     {
         Name = choice.Group;
+        DisplayName = SingBoxConfigService.IsManagedGlobalSelector(choice.Group)
+            ? localization["GlobalMode"]
+            : choice.Group;
         IsSelectable = choice.IsSelectable;
         Nodes = new ObservableCollection<ProxyNodeItemViewModel>(choice.Options.Select(node =>
             new ProxyNodeItemViewModel(
@@ -31,6 +35,8 @@ public sealed partial class ProxyGroupItemViewModel : ViewModelBase
     }
 
     public string Name { get; }
+
+    public string DisplayName { get; }
 
     public bool IsSelectable { get; }
 

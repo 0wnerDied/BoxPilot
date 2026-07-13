@@ -121,6 +121,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
 
     public bool HasClashApi => clashApiConnection is not null;
 
+    public string? GlobalProxyGroup { get; private set; }
+
     public bool CanChangeRoutingMode => !IsBusy && HasClashApi && supportsStandardRoutingModes;
 
     public bool RequiresStandardRoutingModeConsent =>
@@ -370,7 +372,8 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 throw new InvalidOperationException(localization["SaveChangesBeforeRoutingModes"]);
 
             var configuration = configService.Serialize(
-                configService.AddStandardRoutingModes(configService.Parse(ConfigurationText)));
+                configService.EnsureManagedStandardRoutingModes(
+                    configService.Parse(ConfigurationText)));
             var validation = await configService.ValidateAsync(
                 configuration,
                 profile.WorkingDirectory,
@@ -911,16 +914,21 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                                            && configService.SupportsStandardRoutingModes(parsed);
             canAddStandardRoutingModes = parsed is not null
                                          && configService.CanAddStandardRoutingModes(parsed);
+            GlobalProxyGroup = parsed is null
+                ? null
+                : configService.GetGlobalProxyGroup(parsed);
         }
         catch (InvalidDataException)
         {
             clashApiConnection = null;
             supportsStandardRoutingModes = false;
             canAddStandardRoutingModes = false;
+            GlobalProxyGroup = null;
         }
         OnPropertyChanged(nameof(HasClashApi));
         OnPropertyChanged(nameof(CanChangeRoutingMode));
         OnPropertyChanged(nameof(RequiresStandardRoutingModeConsent));
+        OnPropertyChanged(nameof(GlobalProxyGroup));
     }
 
     private async Task<string> NormalizeSubscriptionConfigurationAsync(
@@ -977,8 +985,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         JsonObject configuration)
     {
         return profile.ManageStandardRoutingModes == true
-               && !configService.SupportsStandardRoutingModes(configuration)
-            ? configService.AddStandardRoutingModes(configuration)
+            ? configService.EnsureManagedStandardRoutingModes(configuration)
             : configuration;
     }
 

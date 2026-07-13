@@ -205,6 +205,10 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         var updatedConfiguration = await repository.ReadConfigurationAsync(updated.Profile);
 
         Assert.True(config.SupportsStandardRoutingModes(updatedConfiguration));
+        var parsed = config.Parse(updatedConfiguration);
+        Assert.Equal(
+            SingBoxConfigService.ManagedGlobalSelectorTag,
+            config.GetGlobalProxyGroup(parsed));
         Assert.True(updated.Profile.ManageStandardRoutingModes);
     }
 

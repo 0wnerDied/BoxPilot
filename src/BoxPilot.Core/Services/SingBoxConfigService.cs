@@ -10,6 +10,8 @@ public sealed class SingBoxConfigService(
     AppPaths paths,
     SingBoxService singBoxService)
 {
+    public const string ManagedGlobalSelectorTag = "boxpilot-global";
+
     private static readonly JsonDocumentOptions DocumentOptions = new()
     {
         AllowTrailingCommas = true,
@@ -89,7 +91,7 @@ public sealed class SingBoxConfigService(
 
         var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
         var route = configuration["route"] as JsonObject;
-        return FindGlobalOutbound(outboundObjects, route) is not null;
+        return FindGlobalOutbound(outboundObjects, route, includeManaged: false) is not null;
     }
 
     public JsonObject AddStandardRoutingModes(JsonObject configuration)
@@ -99,6 +101,44 @@ public sealed class SingBoxConfigService(
         var clone = configuration.DeepClone().AsObject();
         if (SupportsStandardRoutingModes(clone))
             return clone;
+        return EnsureManagedStandardRoutingModesCore(clone);
+    }
+
+    public JsonObject EnsureManagedStandardRoutingModes(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return EnsureManagedStandardRoutingModesCore(configuration.DeepClone().AsObject());
+    }
+
+    public string? GetGlobalProxyGroup(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var target = (configuration["route"]?["rules"] as JsonArray)?
+            .OfType<JsonObject>()
+            .FirstOrDefault(static rule => string.Equals(
+                rule["clash_mode"]?.ToString(),
+                "global",
+                StringComparison.OrdinalIgnoreCase))?["outbound"]?.ToString();
+        if (configuration["outbounds"] is not JsonArray outbounds
+            || FindOutbound(outbounds.OfType<JsonObject>().ToArray(), target) is not { } outbound
+            || outbound["type"]?.ToString() is not { } type
+            || type.ToLowerInvariant() is not ("selector" or "urltest"))
+        {
+            return null;
+        }
+
+        return target;
+    }
+
+    public static bool IsManagedGlobalSelector(string? tag)
+    {
+        return tag is not null
+               && (string.Equals(tag, ManagedGlobalSelectorTag, StringComparison.Ordinal)
+                   || tag.StartsWith(ManagedGlobalSelectorTag + " (", StringComparison.Ordinal));
+    }
+
+    private JsonObject EnsureManagedStandardRoutingModesCore(JsonObject clone)
+    {
         if (clone["outbounds"] is not JsonArray outbounds)
         {
             throw new InvalidDataException(
@@ -107,9 +147,9 @@ public sealed class SingBoxConfigService(
 
         var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
         var route = EnsureObject(clone, "route");
-        var global = FindGlobalOutbound(outboundObjects, route)
-                     ?? throw new InvalidDataException(
-                         "Standard routing modes require at least one proxy outbound.");
+        var globalSource = FindGlobalOutbound(outboundObjects, route, includeManaged: false)
+                           ?? throw new InvalidDataException(
+                               "Standard routing modes require at least one proxy outbound.");
         var rules = route["rules"] as JsonArray;
         var needsDirect = rules is null || !ContainsRoutingMode(rules, "direct");
         var direct = string.Empty;
@@ -130,7 +170,44 @@ public sealed class SingBoxConfigService(
             }
         }
 
-        ApplyRoutingModeRules(route, direct, global);
+        var managedGlobal = outboundObjects.FirstOrDefault(static outbound =>
+            string.Equals(outbound["type"]?.ToString(), "selector", StringComparison.OrdinalIgnoreCase)
+            && IsManagedGlobalSelector(outbound["tag"]?.ToString()));
+        if (managedGlobal is null)
+        {
+            var allocator = new SingBoxConfigurationBuilder.TagAllocator(outboundObjects
+                .Select(static outbound => outbound["tag"]?.ToString())
+                .OfType<string>());
+            managedGlobal = new JsonObject
+            {
+                ["type"] = "selector",
+                ["tag"] = allocator.Allocate(ManagedGlobalSelectorTag),
+            };
+            JsonNodes.Append(outbounds, managedGlobal);
+        }
+
+        var managedGlobalTag = managedGlobal["tag"]!.ToString();
+        var members = BuildGlobalSelectorMembers(
+            outbounds.OfType<JsonObject>().ToArray(),
+            globalSource,
+            managedGlobalTag);
+        if (members.Count == 0)
+            throw new InvalidDataException("No proxy nodes are available for Global mode.");
+        var defaultMember = managedGlobal["default"]?.ToString();
+        var sourceDefault = FindOutbound(outboundObjects, globalSource)?["default"]?.ToString();
+        if (defaultMember is null || !members.Contains(defaultMember, StringComparer.Ordinal))
+        {
+            defaultMember = sourceDefault is not null
+                            && members.Contains(sourceDefault, StringComparer.Ordinal)
+                ? sourceDefault
+                : members[0];
+        }
+        managedGlobal["outbounds"] = new JsonArray(
+            members.Select(static member => JsonValue.Create(member)).ToArray());
+        managedGlobal["default"] = defaultMember;
+        managedGlobal["interrupt_exist_connections"] = true;
+
+        ApplyRoutingModeRules(route, direct, managedGlobalTag, replaceGlobal: true);
         if (!SupportsStandardRoutingModes(clone))
             throw new InvalidDataException("Standard routing modes could not be added safely.");
         return clone;
@@ -310,7 +387,8 @@ public sealed class SingBoxConfigService(
     private static void ApplyRoutingModeRules(
         JsonObject route,
         string direct,
-        string global)
+        string global,
+        bool replaceGlobal)
     {
         var rules = EnsureArray(route, "rules");
         var insertionIndex = FindInitialRuleIndex(rules);
@@ -323,7 +401,11 @@ public sealed class SingBoxConfigService(
                 ["outbound"] = direct,
             });
         }
-        if (!ContainsRoutingMode(rules, "global"))
+        var globalRule = rules.OfType<JsonObject>().FirstOrDefault(static rule => string.Equals(
+            rule["clash_mode"]?.ToString(),
+            "global",
+            StringComparison.OrdinalIgnoreCase));
+        if (globalRule is null)
         {
             rules.Insert(insertionIndex, new JsonObject
             {
@@ -332,18 +414,25 @@ public sealed class SingBoxConfigService(
                 ["outbound"] = global,
             });
         }
+        else if (replaceGlobal)
+        {
+            globalRule["action"] = "route";
+            globalRule["outbound"] = global;
+        }
     }
 
     private static string? FindGlobalOutbound(
         IReadOnlyList<JsonObject> outbounds,
-        JsonObject? route)
+        JsonObject? route,
+        bool includeManaged)
     {
         var rules = route?["rules"] as JsonArray;
         var existing = rules?.OfType<JsonObject>().FirstOrDefault(static rule => string.Equals(
             rule["clash_mode"]?.ToString(),
             "global",
             StringComparison.OrdinalIgnoreCase))?["outbound"]?.ToString();
-        if (FindOutbound(outbounds, existing) is { } existingOutbound
+        if ((includeManaged || !IsManagedGlobalSelector(existing))
+            && FindOutbound(outbounds, existing) is { } existingOutbound
             && IsGlobalOutboundType(existingOutbound["type"]?.ToString()))
         {
             return existing;
@@ -360,7 +449,8 @@ public sealed class SingBoxConfigService(
         return outbounds.FirstOrDefault(static outbound => string.Equals(
                    outbound["type"]?.ToString(),
                    "selector",
-                   StringComparison.OrdinalIgnoreCase))?["tag"]?.ToString()
+                   StringComparison.OrdinalIgnoreCase)
+                   && !IsManagedGlobalSelector(outbound["tag"]?.ToString()))?["tag"]?.ToString()
                ?? outbounds.FirstOrDefault(static outbound => string.Equals(
                    outbound["type"]?.ToString(),
                    "urltest",
@@ -368,6 +458,61 @@ public sealed class SingBoxConfigService(
                ?? outbounds.FirstOrDefault(static outbound =>
                    IsGlobalOutboundType(outbound["type"]?.ToString())
                    && !string.IsNullOrWhiteSpace(outbound["tag"]?.ToString()))?["tag"]?.ToString();
+    }
+
+    private static IReadOnlyList<string> BuildGlobalSelectorMembers(
+        IReadOnlyList<JsonObject> outbounds,
+        string source,
+        string managedGlobal)
+    {
+        var byTag = outbounds
+            .Where(static outbound => !string.IsNullOrWhiteSpace(outbound["tag"]?.ToString()))
+            .ToDictionary(
+                static outbound => outbound["tag"]!.ToString(),
+                StringComparer.Ordinal);
+        var members = new List<string>();
+        var added = new HashSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        void Add(string? tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag)
+                || string.Equals(tag, managedGlobal, StringComparison.Ordinal)
+                || !visited.Add(tag)
+                || !byTag.TryGetValue(tag, out var outbound))
+            {
+                return;
+            }
+
+            var type = outbound["type"]?.ToString()?.ToLowerInvariant();
+            if (type is "direct" or "block" or "dns")
+                return;
+            if (type == "selector")
+            {
+                if (outbound["outbounds"] is JsonArray selectorMembers)
+                {
+                    foreach (var member in selectorMembers)
+                        Add(member?.ToString());
+                }
+                return;
+            }
+
+            if (added.Add(tag))
+                members.Add(tag);
+            if (type == "urltest" && outbound["outbounds"] is JsonArray testedMembers)
+            {
+                foreach (var member in testedMembers)
+                    Add(member?.ToString());
+            }
+        }
+
+        Add(source);
+        foreach (var outbound in outbounds)
+        {
+            if (!string.Equals(outbound["type"]?.ToString(), "selector", StringComparison.OrdinalIgnoreCase))
+                Add(outbound["tag"]?.ToString());
+        }
+        return members;
     }
 
     private static bool IsGlobalOutboundType(string? type)
