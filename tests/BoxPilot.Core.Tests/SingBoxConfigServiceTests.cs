@@ -193,7 +193,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ApplyRuntimeOptionsAddsModesCustomDnsAndLanListener()
+    public async Task AddStandardRoutingModesPreservesRulesAndAddsMissingDirectOutbound()
     {
         var configuration = new JsonObject
         {
@@ -204,8 +204,13 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
                     ["tag"] = "Proxy",
                     ["outbounds"] = new JsonArray("Edge"),
                 },
-                new JsonObject { ["type"] = "vless", ["tag"] = "Edge" },
-                new JsonObject { ["type"] = "direct", ["tag"] = "direct" }),
+                new JsonObject
+                {
+                    ["type"] = "socks",
+                    ["tag"] = "Edge",
+                    ["server"] = "example.test",
+                    ["server_port"] = 1080,
+                }),
             ["route"] = new JsonObject
             {
                 ["rules"] = new JsonArray(
@@ -221,6 +226,10 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
             CustomDnsServer = "https://1.1.1.1/dns-query",
             RoutingMode = "Global",
         });
+        Assert.False(service.SupportsStandardRoutingModes(result));
+        Assert.True(service.CanAddStandardRoutingModes(service.Serialize(result)));
+
+        result = service.AddStandardRoutingModes(result);
 
         var mixed = result["inbounds"]!.AsArray().OfType<JsonObject>()
             .Single(inbound => inbound["type"]?.ToString() == "mixed");
@@ -229,15 +238,24 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
         var rules = result["route"]!["rules"]!.AsArray();
         Assert.Equal("sniff", rules[0]?["action"]?.ToString());
         Assert.Equal("direct", rules[1]?["clash_mode"]?.ToString());
-        Assert.Equal("direct", rules[1]?["outbound"]?.ToString());
+        Assert.Equal("boxpilot-direct", rules[1]?["outbound"]?.ToString());
         Assert.Equal("global", rules[2]?["clash_mode"]?.ToString());
         Assert.Equal("Proxy", rules[2]?["outbound"]?.ToString());
+        Assert.Contains(
+            result["outbounds"]!.AsArray().OfType<JsonObject>(),
+            outbound => outbound["type"]?.ToString() == "direct"
+                        && outbound["tag"]?.ToString() == "boxpilot-direct");
+        Assert.DoesNotContain(
+            configuration["outbounds"]!.AsArray().OfType<JsonObject>(),
+            outbound => outbound["type"]?.ToString() == "direct");
         Assert.Equal("https", result["dns"]?["servers"]?[0]?["type"]?.ToString());
         Assert.Equal("/dns-query", result["dns"]?["servers"]?[0]?["path"]?.ToString());
+        var validation = await service.ValidateAsync(service.Serialize(result));
+        Assert.True(validation.IsSuccess, validation.CombinedOutput);
     }
 
     [Fact]
-    public void ApplyRuntimeOptionsPreservesProviderModeRules()
+    public void ExplicitRoutingModesPreserveProviderRules()
     {
         var configuration = new JsonObject
         {
@@ -266,6 +284,7 @@ public sealed class SingBoxConfigServiceTests : IAsyncLifetime
 
         var result = service.ApplyRuntimeOptions(configuration, new AppSettings());
         result = service.ApplyRuntimeOptions(result, new AppSettings());
+        result = service.AddStandardRoutingModes(result);
         var rules = result["route"]!["rules"]!.AsArray();
 
         Assert.Equal(2, rules.Count);

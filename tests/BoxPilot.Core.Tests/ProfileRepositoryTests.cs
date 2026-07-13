@@ -18,11 +18,17 @@ public sealed class ProfileRepositoryTests : IDisposable
         Assert.Equal("{}", await repository.ReadConfigurationAsync(profile));
         Assert.Single(await repository.GetAllAsync());
 
-        var updated = profile with { Name = "Updated", NodeCount = 3 };
+        var updated = profile with
+        {
+            Name = "Updated",
+            NodeCount = 3,
+            ManageStandardRoutingModes = true,
+        };
         await repository.UpdateAsync(updated);
         var loaded = Assert.Single(await repository.GetAllAsync());
         Assert.Equal("Updated", loaded.Name);
         Assert.Equal(3, loaded.NodeCount);
+        Assert.True(loaded.ManageStandardRoutingModes);
 
         await repository.DeleteAsync(profile.Id);
         Assert.Empty(await repository.GetAllAsync());

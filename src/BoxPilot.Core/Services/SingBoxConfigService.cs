@@ -46,8 +46,13 @@ public sealed class SingBoxConfigService(
 
     public ClashApiConnection? GetClashApiConnection(string configuration)
     {
-        var parsed = Parse(configuration);
-        var clashApi = parsed["experimental"]?["clash_api"] as JsonObject;
+        return GetClashApiConnection(Parse(configuration));
+    }
+
+    public ClashApiConnection? GetClashApiConnection(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var clashApi = configuration["experimental"]?["clash_api"] as JsonObject;
         var controller = clashApi?["external_controller"]?.ToString();
         if (controller?.StartsWith(':') == true)
             controller = "127.0.0.1" + controller;
@@ -65,8 +70,76 @@ public sealed class SingBoxConfigService(
 
     public bool SupportsStandardRoutingModes(string configuration)
     {
-        var parsed = Parse(configuration);
-        if (parsed["route"]?["rules"] is not JsonArray rules)
+        return SupportsStandardRoutingModes(Parse(configuration));
+    }
+
+    public bool CanAddStandardRoutingModes(string configuration)
+    {
+        return CanAddStandardRoutingModes(Parse(configuration));
+    }
+
+    public bool CanAddStandardRoutingModes(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (SupportsStandardRoutingModes(configuration)
+            || configuration["outbounds"] is not JsonArray outbounds)
+        {
+            return false;
+        }
+
+        var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
+        var route = configuration["route"] as JsonObject;
+        return FindGlobalOutbound(outboundObjects, route) is not null;
+    }
+
+    public JsonObject AddStandardRoutingModes(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var clone = configuration.DeepClone().AsObject();
+        if (SupportsStandardRoutingModes(clone))
+            return clone;
+        if (clone["outbounds"] is not JsonArray outbounds)
+        {
+            throw new InvalidDataException(
+                "Standard routing modes require at least one proxy outbound.");
+        }
+
+        var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
+        var route = EnsureObject(clone, "route");
+        var global = FindGlobalOutbound(outboundObjects, route)
+                     ?? throw new InvalidDataException(
+                         "Standard routing modes require at least one proxy outbound.");
+        var rules = route["rules"] as JsonArray;
+        var needsDirect = rules is null || !ContainsRoutingMode(rules, "direct");
+        var direct = string.Empty;
+        if (needsDirect)
+        {
+            direct = FindDirectOutbound(outboundObjects) ?? string.Empty;
+            if (direct.Length == 0)
+            {
+                var allocator = new SingBoxConfigurationBuilder.TagAllocator(outboundObjects
+                    .Select(static outbound => outbound["tag"]?.ToString())
+                    .OfType<string>());
+                direct = allocator.Allocate("boxpilot-direct");
+                JsonNodes.Append(outbounds, new JsonObject
+                {
+                    ["type"] = "direct",
+                    ["tag"] = direct,
+                });
+            }
+        }
+
+        ApplyRoutingModeRules(route, direct, global);
+        if (!SupportsStandardRoutingModes(clone))
+            throw new InvalidDataException("Standard routing modes could not be added safely.");
+        return clone;
+    }
+
+    public bool SupportsStandardRoutingModes(JsonObject configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (configuration["route"]?["rules"] is not JsonArray rules)
             return false;
 
         var modes = rules.OfType<JsonObject>()
@@ -221,7 +294,6 @@ public sealed class SingBoxConfigService(
         clashApi["default_mode"] = NormalizeRoutingMode(settings.RoutingMode);
 
         var route = EnsureObject(clone, "route");
-        ApplyRoutingModeRules(clone, route);
         StabilizeRemoteRuleSetDownloads(clone, route);
         route["auto_detect_interface"] = true;
         if (!OperatingSystem.IsAndroid())
@@ -235,20 +307,11 @@ public sealed class SingBoxConfigService(
         return clone;
     }
 
-    private static void ApplyRoutingModeRules(JsonObject configuration, JsonObject route)
+    private static void ApplyRoutingModeRules(
+        JsonObject route,
+        string direct,
+        string global)
     {
-        if (configuration["outbounds"] is not JsonArray outbounds)
-            return;
-
-        var outboundObjects = outbounds.OfType<JsonObject>().ToArray();
-        var direct = outboundObjects.FirstOrDefault(static outbound => string.Equals(
-            outbound["type"]?.ToString(),
-            "direct",
-            StringComparison.OrdinalIgnoreCase))?["tag"]?.ToString();
-        var global = FindGlobalOutbound(outboundObjects, route["final"]?.ToString());
-        if (string.IsNullOrWhiteSpace(direct) || string.IsNullOrWhiteSpace(global))
-            return;
-
         var rules = EnsureArray(route, "rules");
         var insertionIndex = FindInitialRuleIndex(rules);
         if (!ContainsRoutingMode(rules, "direct"))
@@ -273,14 +336,23 @@ public sealed class SingBoxConfigService(
 
     private static string? FindGlobalOutbound(
         IReadOnlyList<JsonObject> outbounds,
-        string? finalOutbound)
+        JsonObject? route)
     {
+        var rules = route?["rules"] as JsonArray;
+        var existing = rules?.OfType<JsonObject>().FirstOrDefault(static rule => string.Equals(
+            rule["clash_mode"]?.ToString(),
+            "global",
+            StringComparison.OrdinalIgnoreCase))?["outbound"]?.ToString();
+        if (FindOutbound(outbounds, existing) is { } existingOutbound
+            && IsGlobalOutboundType(existingOutbound["type"]?.ToString()))
+        {
+            return existing;
+        }
+
+        var finalOutbound = route?["final"]?.ToString();
         if (!string.IsNullOrWhiteSpace(finalOutbound))
         {
-            var final = outbounds.FirstOrDefault(outbound => string.Equals(
-                outbound["tag"]?.ToString(),
-                finalOutbound,
-                StringComparison.Ordinal));
+            var final = FindOutbound(outbounds, finalOutbound);
             if (final is not null && IsGlobalOutboundType(final["type"]?.ToString()))
                 return finalOutbound;
         }
@@ -292,13 +364,36 @@ public sealed class SingBoxConfigService(
                ?? outbounds.FirstOrDefault(static outbound => string.Equals(
                    outbound["type"]?.ToString(),
                    "urltest",
-                   StringComparison.OrdinalIgnoreCase))?["tag"]?.ToString();
+                   StringComparison.OrdinalIgnoreCase))?["tag"]?.ToString()
+               ?? outbounds.FirstOrDefault(static outbound =>
+                   IsGlobalOutboundType(outbound["type"]?.ToString())
+                   && !string.IsNullOrWhiteSpace(outbound["tag"]?.ToString()))?["tag"]?.ToString();
     }
 
     private static bool IsGlobalOutboundType(string? type)
     {
-        return !string.Equals(type, "direct", StringComparison.OrdinalIgnoreCase)
-               && !string.Equals(type, "block", StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(type)
+               && type.ToLowerInvariant() is not ("direct" or "block" or "dns");
+    }
+
+    private static string? FindDirectOutbound(IReadOnlyList<JsonObject> outbounds)
+    {
+        return outbounds.FirstOrDefault(static outbound => string.Equals(
+            outbound["type"]?.ToString(),
+            "direct",
+            StringComparison.OrdinalIgnoreCase))?["tag"]?.ToString();
+    }
+
+    private static JsonObject? FindOutbound(
+        IReadOnlyList<JsonObject> outbounds,
+        string? tag)
+    {
+        return string.IsNullOrWhiteSpace(tag)
+            ? null
+            : outbounds.FirstOrDefault(outbound => string.Equals(
+                outbound["tag"]?.ToString(),
+                tag,
+                StringComparison.Ordinal));
     }
 
     private static bool ContainsRoutingMode(JsonArray rules, string expected)

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text.Json.Nodes;
 using Avalonia.Threading;
 using BoxPilot.App.Services;
 using BoxPilot.Core.Infrastructure;
@@ -32,6 +33,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     private bool suppressProfileLoad;
     private ClashApiConnection? clashApiConnection;
     private bool supportsStandardRoutingModes;
+    private bool canAddStandardRoutingModes;
     private bool initialized;
     private bool disposed;
 
@@ -120,6 +122,15 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public bool HasClashApi => clashApiConnection is not null;
 
     public bool CanChangeRoutingMode => !IsBusy && HasClashApi && supportsStandardRoutingModes;
+
+    public bool RequiresStandardRoutingModeConsent =>
+        SelectedProfile is
+        {
+            Source: ProfileSource.Subscription,
+            ManageStandardRoutingModes: null,
+        }
+        && !supportsStandardRoutingModes
+        && canAddStandardRoutingModes;
 
     public string UploadRate => FormatRate(uploadBytesPerSecond);
 
@@ -344,6 +355,59 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
             await SelectProfileAsync(imported, cancellationToken);
             Toast.Show(localization["ConfigurationImported"], ToastLevel.Success);
             return imported;
+        });
+    }
+
+    public Task<bool> EnableStandardRoutingModesAsync(CancellationToken cancellationToken = default)
+    {
+        return RunBusyWithResultAsync(async () =>
+        {
+            if (!RequiresStandardRoutingModeConsent)
+                return false;
+            var profile = SelectedProfile
+                ?? throw new InvalidOperationException(localization["NoProfile"]);
+            if (IsConfigurationDirty)
+                throw new InvalidOperationException(localization["SaveChangesBeforeRoutingModes"]);
+
+            var configuration = configService.Serialize(
+                configService.AddStandardRoutingModes(configService.Parse(ConfigurationText)));
+            var validation = await configService.ValidateAsync(
+                configuration,
+                profile.WorkingDirectory,
+                cancellationToken);
+            if (!validation.IsSuccess)
+                throw new InvalidDataException(validation.CombinedOutput);
+
+            await profileRepository.WriteConfigurationAsync(
+                profile,
+                configuration,
+                cancellationToken);
+            await UpdateSelectedProfileAsync(
+                profile with { ManageStandardRoutingModes = true },
+                cancellationToken);
+            SetConfigurationText(configuration, false);
+            configurationDrafts.MarkSaved(profile.Id);
+            await ReloadCustomRoutingAsync(SelectedProfile!, cancellationToken);
+            if (IsCoreRunning)
+                await RestartCoreForProfileAsync(SelectedProfile!, cancellationToken);
+            Toast.Show(localization["StandardRoutingModesAdded"], ToastLevel.Success);
+            return true;
+        });
+    }
+
+    public Task<bool> KeepSubscriptionRoutingAsync(CancellationToken cancellationToken = default)
+    {
+        return RunBusyWithResultAsync(async () =>
+        {
+            if (!RequiresStandardRoutingModeConsent)
+                return false;
+            var profile = SelectedProfile
+                ?? throw new InvalidOperationException(localization["NoProfile"]);
+
+            await UpdateSelectedProfileAsync(
+                profile with { ManageStandardRoutingModes = false },
+                cancellationToken);
+            return true;
         });
     }
 
@@ -713,6 +777,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(CanExportConfiguration));
         OnPropertyChanged(nameof(CanRefreshSubscription));
         OnPropertyChanged(nameof(ActiveNodeDisplay));
+        OnPropertyChanged(nameof(RequiresStandardRoutingModeConsent));
     }
 
     partial void OnSettingsChanged(AppSettings value)
@@ -794,6 +859,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         var parsed = configService.Parse(configuration);
         if (profile.Source != ProfileSource.ImportedFile)
             parsed = configService.ApplyRuntimeOptions(parsed, settings);
+        parsed = ApplyConfiguredStandardRoutingModes(profile, parsed);
         return await customRoutingService.ApplyAsync(
             profile.Id,
             configService.Serialize(parsed),
@@ -835,19 +901,26 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     {
         try
         {
-            clashApiConnection = string.IsNullOrWhiteSpace(configuration)
+            var parsed = string.IsNullOrWhiteSpace(configuration)
                 ? null
-                : configService.GetClashApiConnection(configuration);
-            supportsStandardRoutingModes = !string.IsNullOrWhiteSpace(configuration)
-                                           && configService.SupportsStandardRoutingModes(configuration);
+                : configService.Parse(configuration);
+            clashApiConnection = parsed is null
+                ? null
+                : configService.GetClashApiConnection(parsed);
+            supportsStandardRoutingModes = parsed is not null
+                                           && configService.SupportsStandardRoutingModes(parsed);
+            canAddStandardRoutingModes = parsed is not null
+                                         && configService.CanAddStandardRoutingModes(parsed);
         }
         catch (InvalidDataException)
         {
             clashApiConnection = null;
             supportsStandardRoutingModes = false;
+            canAddStandardRoutingModes = false;
         }
         OnPropertyChanged(nameof(HasClashApi));
         OnPropertyChanged(nameof(CanChangeRoutingMode));
+        OnPropertyChanged(nameof(RequiresStandardRoutingModeConsent));
     }
 
     private async Task<string> NormalizeSubscriptionConfigurationAsync(
@@ -881,6 +954,7 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
                 preservePolicyGroups);
         }
         parsed = configService.ApplyRuntimeOptions(parsed, Settings);
+        parsed = ApplyConfiguredStandardRoutingModes(profile, parsed);
 
         // Subscription profiles are app-owned; manual profile formatting remains untouched.
         var normalized = await customRoutingService.ApplyAsync(
@@ -898,6 +972,16 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         return normalized;
     }
 
+    private JsonObject ApplyConfiguredStandardRoutingModes(
+        Profile profile,
+        JsonObject configuration)
+    {
+        return profile.ManageStandardRoutingModes == true
+               && !configService.SupportsStandardRoutingModes(configuration)
+            ? configService.AddStandardRoutingModes(configuration)
+            : configuration;
+    }
+
     private async Task ReloadCustomRoutingAsync(
         Profile profile,
         CancellationToken cancellationToken)
@@ -911,6 +995,18 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
         foreach (var outbound in customRoutingService.GetRoutingOutbounds(ConfigurationText))
             RoutingOutbounds.Add(outbound);
         OnPropertyChanged(nameof(CanManageRuleSets));
+    }
+
+    private async Task UpdateSelectedProfileAsync(
+        Profile profile,
+        CancellationToken cancellationToken)
+    {
+        await profileRepository.UpdateAsync(profile, cancellationToken);
+        await ReloadProfilesAsync(cancellationToken);
+        var updated = Profiles.First(item => item.Id == profile.Id);
+        suppressProfileLoad = true;
+        SelectedProfile = updated;
+        suppressProfileLoad = false;
     }
 
     private async Task RunBusyAsync(Func<Task> operation)

@@ -174,6 +174,74 @@ public sealed class ProfileImportServiceTests : IAsyncLifetime
         Assert.Contains("Source group", updatedConfiguration);
     }
 
+    [Fact]
+    public async Task ImportWithoutModesPersistsSelectedPolicyAcrossUpdates()
+    {
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+            TextResponse(ClashSubscription, "application/yaml")));
+        using var subscriptionClient = new SubscriptionClient(httpClient);
+        var service = CreateService(subscriptionClient);
+
+        var imported = await service.ImportSubscriptionAsync(
+            "Provider",
+            new Uri("https://example.test/sub/clash"),
+            new AppSettings());
+        var initialConfiguration = await repository.ReadConfigurationAsync(imported.Profile);
+
+        Assert.False(config.SupportsStandardRoutingModes(initialConfiguration));
+        Assert.True(config.CanAddStandardRoutingModes(initialConfiguration));
+
+        var optedOut = imported.Profile with { ManageStandardRoutingModes = false };
+        await repository.UpdateAsync(optedOut);
+        var unchanged = await service.UpdateSubscriptionAsync(optedOut, new AppSettings());
+        var unchangedConfiguration = await repository.ReadConfigurationAsync(unchanged.Profile);
+
+        Assert.False(config.SupportsStandardRoutingModes(unchangedConfiguration));
+        Assert.False(unchanged.Profile.ManageStandardRoutingModes);
+
+        var optedIn = unchanged.Profile with { ManageStandardRoutingModes = true };
+        await repository.UpdateAsync(optedIn);
+        var updated = await service.UpdateSubscriptionAsync(optedIn, new AppSettings());
+        var updatedConfiguration = await repository.ReadConfigurationAsync(updated.Profile);
+
+        Assert.True(config.SupportsStandardRoutingModes(updatedConfiguration));
+        Assert.True(updated.Profile.ManageStandardRoutingModes);
+    }
+
+    [Fact]
+    public async Task ImportPreservesProviderModeRules()
+    {
+        const string subscription = """
+            {
+              "outbounds": [
+                { "type": "socks", "tag": "Edge", "server": "example.test", "server_port": 1080 },
+                { "type": "direct", "tag": "direct" }
+              ],
+              "route": {
+                "rules": [
+                  { "clash_mode": "direct", "action": "route", "outbound": "direct" },
+                  { "clash_mode": "global", "action": "route", "outbound": "Edge" }
+                ],
+                "final": "Edge"
+              }
+            }
+            """;
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+            TextResponse(subscription, "application/json")));
+        using var subscriptionClient = new SubscriptionClient(httpClient);
+        var service = CreateService(subscriptionClient);
+
+        var imported = await service.ImportSubscriptionAsync(
+            "Provider",
+            new Uri("https://example.test/sub/singbox"),
+            new AppSettings());
+        var configuration = await repository.ReadConfigurationAsync(imported.Profile);
+
+        Assert.True(config.SupportsStandardRoutingModes(configuration));
+        Assert.False(config.CanAddStandardRoutingModes(configuration));
+        Assert.Null(imported.Profile.ManageStandardRoutingModes);
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

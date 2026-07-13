@@ -84,4 +84,16 @@ public partial class ProfilesViewModel(
         await Session.DeleteSelectedProfileAsync();
         IsDeleteConfirmationVisible = false;
     }
+
+    [RelayCommand]
+    private async Task AddRoutingModesAsync()
+    {
+        await Session.EnableStandardRoutingModesAsync();
+    }
+
+    [RelayCommand]
+    private async Task KeepSubscriptionRoutingAsync()
+    {
+        await Session.KeepSubscriptionRoutingAsync();
+    }
 }

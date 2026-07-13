@@ -30,6 +30,8 @@ public sealed record Profile
 
     public string? WorkingDirectory { get; init; }
 
+    public bool? ManageStandardRoutingModes { get; init; }
+
     public string? ETag { get; init; }
 
     public DateTimeOffset? LastModified { get; init; }

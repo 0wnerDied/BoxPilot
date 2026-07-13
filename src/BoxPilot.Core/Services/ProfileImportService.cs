@@ -105,6 +105,12 @@ public sealed class ProfileImportService(
         var parsed = download.Parsed
                      ?? throw new InvalidOperationException("The updated subscription returned no content.");
         var configuration = SerializeSubscription(parsed, subscriptionUrl);
+        if (profile.ManageStandardRoutingModes == true
+            && !configService.SupportsStandardRoutingModes(configuration))
+        {
+            configuration = configService.Serialize(
+                configService.AddStandardRoutingModes(configService.Parse(configuration)));
+        }
         await ValidateSubscriptionAsync(
                 configuration,
                 "The updated subscription is not accepted by sing-box:",

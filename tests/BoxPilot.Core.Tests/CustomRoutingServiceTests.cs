@@ -31,7 +31,8 @@ public sealed class CustomRoutingServiceTests : IAsyncLifetime
         await File.WriteAllTextAsync(
             Path.Combine(paths.GetRuleSetDirectory(profileId), localFile),
             """{ "version": 3, "rules": [] }""");
-        var configuration = config.ApplyRuntimeOptions(CreateConfiguration(), new AppSettings());
+        var configuration = config.AddStandardRoutingModes(
+            config.ApplyRuntimeOptions(CreateConfiguration(), new AppSettings()));
         var ruleSets = new CustomRuleSet[]
         {
             new()

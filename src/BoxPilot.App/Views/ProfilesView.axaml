@@ -87,8 +87,28 @@
             </ListBox.ItemTemplate>
           </ListBox>
 
-          <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
-            <Border Classes="soft-panel" Padding="12,9"
+          <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto"
+                RowSpacing="8" Margin="0,14,0,0">
+            <Border Grid.ColumnSpan="2" Classes="soft-panel" Padding="12,9"
+                    IsVisible="{Binding Session.RequiresStandardRoutingModeConsent}">
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource RoutingModePromptTitle}"
+                             FontWeight="SemiBold" FontSize="14" />
+                  <TextBlock Text="{DynamicResource RoutingModePromptHint}"
+                             Classes="muted" FontSize="13" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="ghost"
+                        Content="{DynamicResource KeepSubscriptionRouting}"
+                        Command="{Binding KeepSubscriptionRoutingCommand}"
+                        IsEnabled="{Binding !Session.IsBusy}" />
+                <Button Grid.Column="2" Classes="primary"
+                        Content="{DynamicResource AddStandardRoutingModes}"
+                        Command="{Binding AddRoutingModesCommand}"
+                        IsEnabled="{Binding !Session.IsBusy}" />
+              </Grid>
+            </Border>
+            <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="soft-panel" Padding="12,9"
                     IsVisible="{Binding IsDeleteConfirmationVisible}">
               <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <StackPanel Spacing="2" VerticalAlignment="Center">
@@ -103,7 +123,7 @@
                         Command="{Binding ConfirmDeleteCommand}" />
               </Grid>
             </Border>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9"
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="9"
                         IsVisible="{Binding !IsDeleteConfirmationVisible}">
               <Button Classes="ghost" Content="{DynamicResource ExportConfiguration}"
                       Click="ExportConfigurationClicked"
