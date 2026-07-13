@@ -2,13 +2,15 @@
 set -euo pipefail
 
 create_macos_dmg() {
-  local rid="$1"
-  local root="$2"
-  local publish="$3"
-  local target="$4"
+  local root="$1"
+  local publish="$2"
+  local target="$3"
+  local app_name="$4"
+  local version="$5"
+  local artifact_name="$6"
   local staging="$target/dmg-root"
-  local app="$staging/BoxPilot.app"
-  local dmg="$target/BoxPilot-$rid.dmg"
+  local app="$staging/$app_name.app"
+  local dmg="$target/$artifact_name.dmg"
   local created=false
 
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
@@ -16,25 +18,25 @@ create_macos_dmg() {
   rm -rf "$publish"
   cp "$root/src/BoxPilot.App/Assets/boxpilot.icns" \
     "$app/Contents/Resources/boxpilot.icns"
-  cat > "$app/Contents/Info.plist" <<'PLIST'
+  cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleDisplayName</key><string>BoxPilot</string>
-  <key>CFBundleExecutable</key><string>BoxPilot</string>
+  <key>CFBundleDisplayName</key><string>$app_name</string>
+  <key>CFBundleExecutable</key><string>$app_name</string>
   <key>CFBundleIconFile</key><string>boxpilot</string>
   <key>CFBundleIdentifier</key><string>tech.0b1t.boxpilot</string>
-  <key>CFBundleName</key><string>BoxPilot</string>
+  <key>CFBundleName</key><string>$app_name</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.2</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$version</string>
+  <key>CFBundleVersion</key><string>$version</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 PLIST
-  chmod +x "$app/Contents/MacOS/BoxPilot"
+  chmod +x "$app/Contents/MacOS/$app_name"
   if command -v codesign >/dev/null 2>&1; then
     codesign --force --deep --sign - "$app"
   fi
@@ -47,7 +49,7 @@ PLIST
   for attempt in 1 2 3; do
     rm -f "$dmg"
     if hdiutil create \
-      -volname BoxPilot \
+      -volname "$app_name" \
       -srcfolder "$staging" \
       -format UDZO \
       -imagekey zlib-level=9 \
@@ -72,35 +74,26 @@ PLIST
 }
 
 create_windows_package() {
-  local rid="$1"
-  local publish="$2"
-  local target="$3"
+  local publish="$1"
+  local target="$2"
+  local app_name="$3"
+  local artifact_name="$4"
+  local executable="$publish/$app_name.exe"
+  local artifact="$target/$artifact_name.exe"
 
-  if [[ ! -f "$publish/BoxPilot.exe" ]]; then
-    echo "Windows publish is missing BoxPilot.exe" >&2
+  if [[ ! -f "$executable" ]]; then
+    echo "Windows publish is missing $app_name.exe" >&2
     return 1
   fi
 
   if find "$publish" -type f -iname '*.dll' -print -quit | grep -q .; then
-    if ! command -v zip >/dev/null 2>&1; then
-      echo "zip is required when Windows DLL dependencies are present" >&2
-      return 1
-    fi
-
-    local package="$target/BoxPilot"
-    local archive="$target/BoxPilot-$rid.zip"
-    mv "$publish" "$package"
-    (
-      cd "$target"
-      zip -qr "$(basename "$archive")" BoxPilot
-    )
-    echo "Created $archive"
-    return
+    echo "Windows publish contains DLL dependencies instead of one executable" >&2
+    return 1
   fi
 
-  cp -R "$publish/". "$target/"
+  mv "$executable" "$artifact"
   rm -rf "$publish"
-  echo "Created $target/BoxPilot.exe"
+  echo "Created $artifact"
 }
 
 if [[ $# -ne 1 ]]; then
@@ -126,6 +119,33 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$root/src/BoxPilot.App/BoxPilot.App.csproj"
 target="$root/dist/$rid"
 publish="$target/publish"
+app_name="$(dotnet msbuild "$project" -getProperty:AssemblyName -nologo | tr -d '\r')"
+version="$(dotnet msbuild "$project" -getProperty:Version -nologo | tr -d '\r')"
+
+if [[ -z "$app_name" || -z "$version" ]]; then
+  echo "Could not read the application name or version from $project" >&2
+  exit 1
+fi
+
+case "$rid" in
+  osx-arm64)
+    platform=macos
+    architecture=arm64
+    ;;
+  osx-x64)
+    platform=macos
+    architecture=x64
+    ;;
+  win-x64)
+    platform=windows
+    architecture=x64
+    ;;
+  win-arm64)
+    platform=windows
+    architecture=arm64
+    ;;
+esac
+artifact_name="$app_name-$platform-$architecture-$version"
 
 rm -rf "$target"
 mkdir -p "$publish"
@@ -141,7 +161,8 @@ dotnet publish "$project" \
 find "$publish" -type f -name '*.pdb' -delete
 
 if [[ "$rid" == osx-* ]]; then
-  create_macos_dmg "$rid" "$root" "$publish" "$target"
+  create_macos_dmg \
+    "$root" "$publish" "$target" "$app_name" "$version" "$artifact_name"
 else
-  create_windows_package "$rid" "$publish" "$target"
+  create_windows_package "$publish" "$target" "$app_name" "$artifact_name"
 fi

@@ -38,9 +38,16 @@ make lint       # 验证代码格式
 ./scripts/publish.sh win-arm64
 ```
 
-自包含产物位于 `dist/<RID>/`。macOS 输出 `.dmg`，打开后将
-`BoxPilot.app` 拖入 `Applications` 即可安装。Windows 单文件发布直接输出
-带嵌入图标的 `BoxPilot.exe`；仅当发布结果包含 DLL 依赖时才生成 ZIP 包。
+自包含产物位于 `dist/<RID>/`，名称中的软件名和版本号来自应用项目：
+
+- `BoxPilot-macos-arm64-<版本号>.dmg`
+- `BoxPilot-macos-x64-<版本号>.dmg`
+- `BoxPilot-windows-x64-<版本号>.exe`
+- `BoxPilot-windows-arm64-<版本号>.exe`
+
+打开 macOS 的 `.dmg` 后将 `BoxPilot.app` 拖入 `Applications` 即可安装。
+Windows 发布结果是带嵌入图标的单个 `.exe`；若意外产生 DLL 依赖，发布会
+明确失败，避免分发无法独立运行的文件。
 Release 发布会全量裁剪未使用代码并压缩单文件，同时保留内置 .NET 运行时，
 终端用户无需另行安装 .NET。
 macOS 自动构建使用 ad-hoc 签名；DMG 内的 `README.txt` 提供 Gatekeeper
