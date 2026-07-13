@@ -452,10 +452,6 @@
       <Setter Property="Margin" Value="0" />
       <Setter Property="CornerRadius" Value="0" />
     </Style>
-    <Style Selector="ListBox.node-list ListBoxItem:pointerover /template/ ContentPresenter,
-                     ListBox.node-list ListBoxItem:selected /template/ ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
     <Style Selector="Border.node-row">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
@@ -536,6 +532,10 @@
     </Style>
     <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+    <Style Selector="ListBox.node-list ListBoxItem:pointerover /template/ ContentPresenter,
+                     ListBox.node-list ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="ListBox.log-list ListBoxItem:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="#0BFFFFFF" />
