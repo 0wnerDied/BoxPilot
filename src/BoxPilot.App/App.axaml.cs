@@ -36,8 +36,14 @@ public partial class App : Application
             };
 
             desktop.MainWindow = window;
-            desktop.ShutdownRequested += (_, _) => window.AllowClose = true;
-            desktop.Exit += (_, _) => runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            var shutdown = new ApplicationShutdownCoordinator(
+                runtime.DisposeAsync,
+                () => desktop.Shutdown());
+            desktop.ShutdownRequested += (_, eventArgs) =>
+            {
+                window.AllowClose = true;
+                shutdown.Request(eventArgs);
+            };
         }
 
         base.OnFrameworkInitializationCompleted();

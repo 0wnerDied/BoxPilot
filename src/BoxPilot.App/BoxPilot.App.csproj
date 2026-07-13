@@ -49,4 +49,8 @@
   <ItemGroup>
     <ProjectReference Include="..\BoxPilot.Core\BoxPilot.Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BoxPilot.App.Tests" />
+  </ItemGroup>
 </Project>
