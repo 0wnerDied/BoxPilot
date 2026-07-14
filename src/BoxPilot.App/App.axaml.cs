@@ -10,6 +10,8 @@ namespace BoxPilot.App;
 public partial class App : Application
 {
     private AppRuntime? runtime;
+    private IActivatableLifetime? activatableLifetime;
+    private ApplicationActivationHandler? activationHandler;
 
     public override void Initialize()
     {
@@ -25,7 +27,15 @@ public partial class App : Application
 
             var viewModel = new MainViewModel(runtime.Session, runtime.Localization);
             var window = new MainWindow { DataContext = viewModel };
-            DataContext = new TrayViewModel(runtime.Session, window);
+            var trayViewModel = new TrayViewModel(runtime.Session, window);
+            DataContext = trayViewModel;
+            if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime lifetime)
+            {
+                activatableLifetime = lifetime;
+                activationHandler = new ApplicationActivationHandler(
+                    () => trayViewModel.ShowWindowCommand.Execute(null));
+                lifetime.Activated += activationHandler.Handle;
+            }
             var initialized = false;
             window.Opened += async (_, _) =>
             {
@@ -37,7 +47,7 @@ public partial class App : Application
 
             desktop.MainWindow = window;
             var shutdown = new ApplicationShutdownCoordinator(
-                runtime.DisposeAsync,
+                DisposeRuntimeAsync,
                 () => desktop.Shutdown());
             desktop.ShutdownRequested += (_, eventArgs) =>
             {
@@ -47,5 +57,19 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async ValueTask DisposeRuntimeAsync()
+    {
+        if (activatableLifetime is not null && activationHandler is not null)
+            activatableLifetime.Activated -= activationHandler.Handle;
+        activatableLifetime = null;
+        activationHandler = null;
+
+        if (runtime is null)
+            return;
+
+        await runtime.DisposeAsync();
+        runtime = null;
     }
 }
