@@ -7,6 +7,21 @@ namespace BoxPilot.App.Tests;
 public sealed class SettingsViewModelTests
 {
     [Fact]
+    public void OpenDataDirectoryPreservesWhitespaceInPath()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "BoxPilot App Tests",
+            "data");
+
+        var startInfo = AppSessionViewModel.CreateOpenDataDirectoryStartInfo(directory);
+
+        Assert.False(startInfo.UseShellExecute);
+        Assert.Equal(directory, Assert.Single(startInfo.ArgumentList));
+        Assert.Empty(startInfo.Arguments);
+    }
+
+    [Fact]
     public async Task SaveAllowsClearedOptionalTextFieldsWhenEnablingTun()
     {
         using var directory = new TemporaryDirectory();

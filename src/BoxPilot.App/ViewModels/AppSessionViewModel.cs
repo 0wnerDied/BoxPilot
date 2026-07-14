@@ -714,13 +714,22 @@ public partial class AppSessionViewModel : ViewModelBase, IAsyncDisposable
     public void OpenDataDirectory()
     {
         paths.EnsureCreated();
-        var startInfo = OperatingSystem.IsWindows()
-            ? new ProcessStartInfo("explorer.exe", paths.RootDirectory)
-            : OperatingSystem.IsMacOS()
-                ? new ProcessStartInfo("open", paths.RootDirectory)
-                : new ProcessStartInfo("xdg-open", paths.RootDirectory);
-        startInfo.UseShellExecute = false;
-        Process.Start(startInfo)?.Dispose();
+        Process.Start(CreateOpenDataDirectoryStartInfo(paths.RootDirectory))?.Dispose();
+    }
+
+    internal static ProcessStartInfo CreateOpenDataDirectoryStartInfo(string directory)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows()
+                ? "explorer.exe"
+                : OperatingSystem.IsMacOS()
+                    ? "open"
+                    : "xdg-open",
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add(directory);
+        return startInfo;
     }
 
     public Task UninstallTunServiceAsync(CancellationToken cancellationToken = default)
